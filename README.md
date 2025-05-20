@@ -72,6 +72,17 @@ Notes about weather sensor setup:
 
 To collect weather forecasts:
 
+Enable required Postgres Extensions
+
+To enable weather forecast functionality, two PostgreSQL extensions must be installed. Run the following SQL commands in your database:
+
+```
+CREATE EXTENSION IF NOT EXISTS cube;
+CREATE EXTENSION IF NOT EXISTS earthdistance;
+```
+
+These extensions provide support for geographical calculations such as ll_to_earth and earth_distance, which are used to determine proximity between coordinates.
+
 `flexmeasures weather get-weather-forecasts --location 30,40`
 
 This saves forecasts for your registered sensors in the database.
