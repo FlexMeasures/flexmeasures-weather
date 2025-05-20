@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Tuple, List, Dict, Optional
+from typing import Tuple, List, Dict, Optional, Any
 import os
 from datetime import datetime, timedelta
 import json
@@ -47,7 +47,22 @@ def get_supported_sensors_str() -> str:
     )
 
 
-def process_weatherapi_data(data, hour_no):
+def process_weatherapi_data(
+    data: List[Dict[str, Any]],
+    hour_no: int
+) -> List[Dict[str, Any]]:
+    """
+    Processes raw WeatherAPI forecast data into a format similar to OpenWeatherMap's format.
+
+    Args:
+        data (List[Dict[str, Any]]): A list of forecast day dictionaries from WeatherAPI,
+            each containing an 'hour' key with 24 hourly entries.
+        hour_no (int): The index of the current hour to start from.
+
+    Returns:
+        List[Dict[str, Any]]: A list of 48 hourly forecast entries, each mapped to the
+        expected structure with fields like temperature, humidity, wind, and condition.
+    """
     first_day = data[0]['hour']
     second_day = data[1]['hour']
     third_day = data[2]['hour']
@@ -56,7 +71,16 @@ def process_weatherapi_data(data, hour_no):
     relevant = combined[hour_no: hour_no + 48]
     # relevant = combined
     
-    def map_weather_api_to_owm(weather_api_data):
+    def map_weather_api_to_owm(weather_api_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Converts a single hour of WeatherAPI data to an OpenWeatherMap-style dictionary.
+
+        Args:
+            weather_api_data (Dict[str, Any]): A dictionary containing an hour's data from WeatherAPI.
+
+        Returns:
+            Dict[str, Any]: A dictionary with keys and structure similar to OpenWeatherMap's hourly forecast.
+        """
         game = {
             "dt": weather_api_data["time_epoch"],
             "temp": weather_api_data["temp_c"],
@@ -115,9 +139,20 @@ def call_weatherapi(
     days: int = 3
 ) -> Tuple[datetime, List[Dict]]:
     """
-    Make a single call to the Weather API and return the API timestamp as well as the 48 hourly forecasts.
-    See https://www.weatherapi.com/docs/ for docs.
-    Note that the first forecast is about the current hour.
+    Makes a request to the WeatherAPI to retrieve hourly weather forecast data.
+
+    Args:
+        api_key (str): API key for authenticating with the Weather API.
+        location (Tuple[float, float]): A tuple containing the latitude and longitude.
+        days (int, optional): Number of days to request the forecast for (default is 3, including current day).
+
+    Returns:
+        Tuple[datetime, List[Dict]]: 
+            - The timestamp of the API call.
+            - A list of hourly forecast data as dictionaries. Note that the first forecast is about the current hour.
+
+    Raises:
+        AssertionError: If the response from the Weather API is not successful (HTTP status 200).
     """
     
     latitude, longitude = location[0], location[1]
@@ -147,7 +182,26 @@ def call_weatherapi(
     return time_of_api_call, hourly
 
 
-def call_api(api_key, location):
+def call_api(
+    api_key: str,
+    location: Tuple[float, float]
+) -> Tuple[datetime, List[Dict]]:
+    """
+    Dispatches the weather API call based on the configured provider.
+
+    Args:
+        api_key (str): API key for the selected weather service provider.
+        location (Tuple[float, float]): Latitude and longitude tuple.
+
+    Returns:
+        Tuple[datetime, List[Dict]]: 
+            - Timestamp of the API call.
+            - List of hourly forecast data.
+
+    Raises:
+        Exception: If an invalid weather provider is configured.
+    """
+
     provider = str(current_app.config.get("WEATHER_PROVIDER", ""))
     if provider not in ['OWM', 'WAPI']:
         raise Exception("Invalid provider name. Please set WEATHER_PROVIDER setting in config file to either OWM or WAPI, the two permissible options.")
