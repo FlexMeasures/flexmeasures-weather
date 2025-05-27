@@ -1,8 +1,61 @@
-# FLEXMEASURES-WEATHER - a plugin for FlexMeasures to integrate multiple Weather API services
+# FLEXMEASURES-WEATHER - a plugin for FlexMeasures to integrate weather forecasts
 
-### Configuration
 
 This plugin currently supports two Weather API services: [OpenWeatherMap One Call API](https://openweathermap.org/api/one-call-3) and [Weather API](https://www.weatherapi.com/). The configuration is controlled via your FlexMeasures config file.
+
+
+## Usage
+
+To register a new weather sensor:
+
+`flexmeasures weather register-weather-sensor --name "wind speed" --latitude 30 --longitude 40`
+
+Currently supported: wind speed, temperature & irradiance.
+
+To collect weather forecasts:
+
+`flexmeasures weather get-weather-forecasts --location 30,40`
+
+This saves forecasts for your registered sensors in the database.
+
+Use the `--help`` option for more options, e.g. for specifying two locations and requesting that a number of weather stations cover the bounding box between them (where the locations represent top left and bottom right).
+
+Notes about weather sensor setup: 
+
+- Weather sensors are public assets in FlexMeasures. They are accessible by all accounts on a FlexMeasures server.
+- The resolution is one hour. Weather also supports minutely data within the upcoming hour(s), but that is not supported here.
+
+An alternative usage is to save raw results in JSON files (for later processing), like this:
+
+`flexmeasures weather get-weather-forecasts --location 30,40 --store-as-json-files --region somewhere`
+
+This saves the complete response from the Weather Provider in a local folder (i.e. no sensor registration needed, this is a direct way to use Weather APIs, without FlexMeasures integration). `region` will become a subfolder.
+ 
+Finally, note that these APIs allow free calls, but not without limits.
+For instance, currently 1000 free calls per day can be made to the OpenWeatherMap API,
+so you can make a call every 15 minutes for up to 10 locations or every hour for up to 40 locations (or get a paid account).
+
+
+## Setup
+
+### Installation
+
+To add as plugin to an existing FlexMeasures system, add "/path/to/flexmeasures-weather-repo/flexmeasures_weather" to your FlexMeasures config file,
+using the FLEXMEASURES_PLUGINS setting (a list).
+
+Alternatively, if you installed this plugin as a package (e.g. via `python setup.py install`, `pip install -e` or `pip install flexmeasures_weather` after this project is on Pypi), then "flexmeasures_weather" suffices.
+
+To enable weather forecast functionality, two PostgreSQL extensions must be installed. Run the following SQL commands in your database:
+
+```
+CREATE EXTENSION IF NOT EXISTS cube;
+CREATE EXTENSION IF NOT EXISTS earthdistance;
+```
+
+These extensions provide support for geographical calculations such as `ll_to_earth` and `earth_distance`, which we use to find the nearest weather station asset.
+
+
+### Configuration
 
 Add the following entries to your config:
 
@@ -55,61 +108,6 @@ To expand the plugin's coverage to additional weather API services:
    - Submit a pull request with your changes for review.
 
 > This modular structure allows for seamless integration of additional services while maintaining consistency and clarity in data handling.
-
-
-## Usage
-
-To register a new weather sensor:
-
-`flexmeasures weather register-weather-sensor --name "wind speed" --latitude 30 --longitude 40`
-
-Currently supported: wind speed, temperature & irradiance.
-
-Notes about weather sensor setup: 
-
-- Weather sensors are public. They are accessible by all accounts on a FlexMeasures server. TODO: maybe limit this to a list of account roles.
-- The resolution is one hour. Weather also supports minutely data within the upcoming hour(s), but that is not supported here.
-
-To collect weather forecasts:
-
-Enable required Postgres Extensions
-
-To enable weather forecast functionality, two PostgreSQL extensions must be installed. Run the following SQL commands in your database:
-
-```
-CREATE EXTENSION IF NOT EXISTS cube;
-CREATE EXTENSION IF NOT EXISTS earthdistance;
-```
-
-These extensions provide support for geographical calculations such as ll_to_earth and earth_distance, which are used to determine proximity between coordinates.
-
-`flexmeasures weather get-weather-forecasts --location 30,40`
-
-This saves forecasts for your registered sensors in the database.
-
-Use the `--help`` option for more options, e.g. for specifying two locations and requesting that a number of weather stations cover the bounding box between them (where the locations represent top left and bottom right).
-
-An alternative usage is to save raw results in JSON files (for later processing), like this:
-
-`flexmeasures weather get-weather-forecasts --location 30,40 --store-as-json-files --region somewhere`
-
-This saves the complete response from the Weather Provider in a local folder (i.e. no sensor registration needed, this is a direct way to use Weather, without FlexMeasures integration). `region` will become a subfolder.
- 
-Finally, note that currently 1000 free calls per day can be made to the OpenWeatherMap API,
-so you can make a call every 15 minutes for up to 10 locations or every hour for up to 40 locations (or get a paid account).
-
-
-## Installation
-
-To install locally, run
-
-    make install
-
-To add as plugin to an existing FlexMeasures system, add "/path/to/FLEXMEASURES-WEATHER/flexmeasures_weather" to your FlexMeasures (>v0.7.0dev8) config file,
-using the FLEXMEASURES_PLUGINS setting (a list).
-
-Alternatively, if you installed this plugin as a package (e.g. via `python setup.py install`, `pip install -e` or `pip install flexmeasures_weather` after this project is on Pypi), then "flexmeasures_weather" suffices.
-
 
 
 ## Development
