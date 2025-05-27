@@ -116,7 +116,7 @@ We use pre-commit to keep code quality up.
 
 Install necessary tools with:
 
-    pip install pre-commit black flake8 mypy
+    pip install pre-commit
     pre-commit install
 
 or:
