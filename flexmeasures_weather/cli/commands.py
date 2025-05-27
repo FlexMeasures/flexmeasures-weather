@@ -164,9 +164,7 @@ def collect_weather_data(location, asset_id, store_in_db, num_cells, method, reg
 
     api_key = str(current_app.config.get("WEATHERAPI_KEY", ""))
     if api_key == "":
-        raise Exception(
-            "[FLEXMEASURES-WEATHER] Setting WEATHERAPI_KEY not available."
-        )
+        raise Exception("[FLEXMEASURES-WEATHER] Setting WEATHERAPI_KEY not available.")
     if asset_id is not None:
         locations = [get_location_by_asset_id(asset_id)]
     elif location is not None:
