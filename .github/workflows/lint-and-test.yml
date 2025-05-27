@@ -34,6 +34,7 @@ jobs:
           git fetch --prune --unshallow
           git fetch --depth=1 origin +refs/tags/*:refs/tags/*
       - name: Install SQL extensions
+        run: |
           sudo apt-get update
           sudo apt-get -y install postgresql-client
           psql -h $PGHOST -p $PGPORT --file scripts/load-psql-extensions.sql -U $PGUSER $PGDB;
