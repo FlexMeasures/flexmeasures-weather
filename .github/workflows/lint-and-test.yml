@@ -28,11 +28,12 @@ jobs:
         with:
           python-version: ${{ matrix.py_version }}
       - name: Check out src from Git
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Get history and tags for SCM versioning to work
         run: |
           git fetch --prune --unshallow
           git fetch --depth=1 origin +refs/tags/*:refs/tags/*
+      - name: Install SQL extensions
           sudo apt-get update
           sudo apt-get -y install postgresql-client
           psql -h $PGHOST -p $PGPORT --file scripts/load-psql-extensions.sql -U $PGUSER $PGDB;
