@@ -1,3 +1,11 @@
 -c app.txt
 
-# there are no extra requirements beyond what FlexMeasures installs to test (test.txt in your FlexMeasures requirements)
+pytest
+pytest-flask
+pytest-sugar
+pytest-cov
+# lets tests run successfully in containers
+# Upper limit because latest versions do not support latest Redis sometimes
+fakeredis >2.14, <2.17.0
+# required with fakeredis, maybe because we use rq
+lupa
