@@ -8,7 +8,7 @@ FlexMeasures registers the BluePrint objects it finds in here.
 """
 
 
-from importlib_metadata import version, PackageNotFoundError
+from importlib.metadata import version, PackageNotFoundError
 
 from flask import Blueprint
 
