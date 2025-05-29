@@ -25,7 +25,7 @@ install-deps:
 	pip-sync requirements/app.txt
 
 install-flexmeasures-weather:
-	python setup.py develop
+	pip install -e .
 
 install-pip-tools:
 	pip3 install -q "pip-tools>=6.2"
