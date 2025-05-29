@@ -34,6 +34,9 @@ jobs:
           sudo apt-get update
           sudo apt-get -y install postgresql-client
           psql -h $PGHOST -p $PGPORT --file scripts/load-psql-extensions.sql -U $PGUSER $PGDB;
+      - name: Install necessary items for netcdf
+        run: |
+          sudo apt-get install libhdf5-serial-dev netcdf-bin libnetcdf-dev
       - run: make test
     env:
       PGHOST: 127.0.0.1
