@@ -48,8 +48,7 @@ def get_supported_sensors_str() -> str:
 
 
 def process_weatherapi_data(
-    data: List[Dict[str, Any]],
-    hour_no: int
+    data: List[Dict[str, Any]], hour_no: int
 ) -> List[Dict[str, Any]]:
     """
     Processes raw WeatherAPI forecast data into a format similar to OpenWeatherMap's format.
@@ -63,14 +62,14 @@ def process_weatherapi_data(
         List[Dict[str, Any]]: A list of 48 hourly forecast entries, each mapped to the
         expected structure with fields like temperature, humidity, wind, and condition.
     """
-    first_day = data[0]['hour']
-    second_day = data[1]['hour']
-    third_day = data[2]['hour']
+    first_day = data[0]["hour"]
+    second_day = data[1]["hour"]
+    third_day = data[2]["hour"]
     combined = first_day + second_day + third_day
-    
-    relevant = combined[hour_no: hour_no + 48]
+
+    relevant = combined[hour_no : hour_no + 48]
     # relevant = combined
-    
+
     def map_weather_api_to_owm(weather_api_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Converts a single hour of WeatherAPI data to an OpenWeatherMap-style dictionary.
@@ -105,7 +104,7 @@ def process_weatherapi_data(
             "pop": weather_api_data["chance_of_rain"] / 100,
         }
         return game
-    
+
     converted = [map_weather_api_to_owm(hour) for hour in relevant]
     return converted
 
@@ -133,10 +132,8 @@ def call_openweatherapi(
     return time_of_api_call, data["hourly"]
 
 
-def call_weatherapi(  
-    api_key: str,
-    location: Tuple[float, float],
-    days: int = 3
+def call_weatherapi(
+    api_key: str, location: Tuple[float, float], days: int = 3
 ) -> Tuple[datetime, List[Dict]]:
     """
     Makes a request to the WeatherAPI to retrieve hourly weather forecast data.
@@ -147,44 +144,43 @@ def call_weatherapi(
         days (int, optional): Number of days to request the forecast for (default is 3, including current day).
 
     Returns:
-        Tuple[datetime, List[Dict]]: 
+        Tuple[datetime, List[Dict]]:
             - The timestamp of the API call.
             - A list of hourly forecast data as dictionaries. Note that the first forecast is about the current hour.
 
     Raises:
         AssertionError: If the response from the Weather API is not successful (HTTP status 200).
     """
-    
+
     latitude, longitude = location[0], location[1]
-    
+
     query_str = f"http://api.weatherapi.com/v1/forecast.json?key={api_key}&q={latitude},{longitude}&days={days}&aqi=yes&alerts=yes"
     res = requests.get(query_str)
-    
+
     assert (
         res.status_code == 200
     ), f"Weather API returned status code {res.status_code}: {res.text}"
-    
+
     data = res.json()
-    
+
     # get the time of the api call
-    time_of_call = int(data['location']['localtime_epoch'])
-    local_timezone = ZoneInfo(data['location']['tz_id'])
+    time_of_call = int(data["location"]["localtime_epoch"])
+    local_timezone = ZoneInfo(data["location"]["tz_id"])
     local_time = datetime.fromtimestamp(time_of_call, local_timezone)
     time_of_api_call = as_server_time(local_time)
     time_of_api_call = time_of_api_call.replace(second=0, microsecond=0)
-    
+
     print(f"Time of API call in WAPI is {time_of_api_call}")
-    
-    relevant = data['forecast']['forecastday']
+
+    relevant = data["forecast"]["forecastday"]
     hour_no = local_time.hour
-    
+
     hourly = process_weatherapi_data(relevant, hour_no)
     return time_of_api_call, hourly
 
 
 def call_api(
-    api_key: str,
-    location: Tuple[float, float]
+    api_key: str, location: Tuple[float, float]
 ) -> Tuple[datetime, List[Dict]]:
     """
     Dispatches the weather API call based on the configured provider.
@@ -194,7 +190,7 @@ def call_api(
         location (Tuple[float, float]): Latitude and longitude tuple.
 
     Returns:
-        Tuple[datetime, List[Dict]]: 
+        Tuple[datetime, List[Dict]]:
             - Timestamp of the API call.
             - List of hourly forecast data.
 
@@ -203,10 +199,12 @@ def call_api(
     """
 
     provider = str(current_app.config.get("WEATHER_PROVIDER", ""))
-    if provider not in ['OWM', 'WAPI']:
-        raise Exception("Invalid provider name. Please set WEATHER_PROVIDER setting in config file to either OWM or WAPI, the two permissible options.")
-    
-    if provider == 'OWM':
+    if provider not in ["OWM", "WAPI"]:
+        raise Exception(
+            "Invalid provider name. Please set WEATHER_PROVIDER setting in config file to either OWM or WAPI, the two permissible options."
+        )
+
+    if provider == "OWM":
         click.secho("Calling Open Weather Map")
         return call_openweatherapi(api_key, location)
     else:
@@ -230,9 +228,9 @@ def save_forecasts_in_db(
     )
     for location in locations:
         click.echo("[FLEXMEASURES] %s, %s" % location)
-        weather_sensors: Dict[
-            str, Sensor
-        ] = {}  # keep track of the sensors to save lookups
+        weather_sensors: Dict[str, Sensor] = (
+            {}
+        )  # keep track of the sensors to save lookups
         db_forecasts: Dict[Sensor, List[TimedBelief]] = {}  # collect beliefs per sensor
 
         now = server_now()
@@ -251,7 +249,9 @@ def save_forecasts_in_db(
             fc_datetime = as_server_time(
                 datetime.fromtimestamp(fc["dt"], get_timezone())
             )
-            click.echo(f"[FLEXMEASURES-WEATHER] Processing forecast for {fc_datetime} ...")
+            click.echo(
+                f"[FLEXMEASURES-WEATHER] Processing forecast for {fc_datetime} ..."
+            )
             data_source = get_or_create_owm_data_source()
             for sensor_specs in mapping:
                 sensor_name = str(sensor_specs["fm_sensor_name"])

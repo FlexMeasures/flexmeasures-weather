@@ -123,6 +123,7 @@ def get_location_by_asset_id(asset_id: int) -> Tuple[float, float]:
         )
     if asset is None:
         raise Exception(
-            "[FLEXMEASURES-WEATHER] No asset found for the given asset id %s." % asset_id
+            "[FLEXMEASURES-WEATHER] No asset found for the given asset id %s."
+            % asset_id
         )
     return (asset.latitude, asset.longitude)
