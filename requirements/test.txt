@@ -5,11 +5,17 @@
 #    pip-compile --output-file=requirements/test.txt requirements/test.in
 #
 async-timeout==5.0.1
-    # via redis
+    # via
+    #   -c /home/nicolas/workspace/seita/flexmeasures-weather/requirements/app.txt
+    #   redis
 blinker==1.9.0
-    # via flask
+    # via
+    #   -c /home/nicolas/workspace/seita/flexmeasures-weather/requirements/app.txt
+    #   flask
 click==8.2.1
-    # via flask
+    # via
+    #   -c /home/nicolas/workspace/seita/flexmeasures-weather/requirements/app.txt
+    #   flask
 coverage[toml]==7.8.2
     # via pytest-cov
 exceptiongroup==1.3.0
@@ -17,17 +23,24 @@ exceptiongroup==1.3.0
 fakeredis==2.16.0
     # via -r requirements/test.in
 flask==3.1.1
-    # via pytest-flask
+    # via
+    #   -c /home/nicolas/workspace/seita/flexmeasures-weather/requirements/app.txt
+    #   pytest-flask
 iniconfig==2.1.0
     # via pytest
 itsdangerous==2.2.0
-    # via flask
+    # via
+    #   -c /home/nicolas/workspace/seita/flexmeasures-weather/requirements/app.txt
+    #   flask
 jinja2==3.1.6
-    # via flask
+    # via
+    #   -c /home/nicolas/workspace/seita/flexmeasures-weather/requirements/app.txt
+    #   flask
 lupa==2.4
     # via -r requirements/test.in
 markupsafe==3.0.2
     # via
+    #   -c /home/nicolas/workspace/seita/flexmeasures-weather/requirements/app.txt
     #   flask
     #   jinja2
     #   werkzeug
@@ -51,13 +64,16 @@ pytest-flask==1.3.0
 pytest-sugar==1.0.0
     # via -r requirements/test.in
 redis==6.2.0
-    # via fakeredis
+    # via
+    #   -c /home/nicolas/workspace/seita/flexmeasures-weather/requirements/app.txt
+    #   fakeredis
 sortedcontainers==2.4.0
     # via fakeredis
 termcolor==3.1.0
     # via pytest-sugar
 tomli==2.2.1
     # via
+    #   -c /home/nicolas/workspace/seita/flexmeasures-weather/requirements/app.txt
     #   coverage
     #   pytest
 typing-extensions==4.13.2
@@ -66,5 +82,6 @@ typing-extensions==4.13.2
     #   exceptiongroup
 werkzeug==3.1.3
     # via
+    #   -c /home/nicolas/workspace/seita/flexmeasures-weather/requirements/app.txt
     #   flask
     #   pytest-flask
