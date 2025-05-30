@@ -22,8 +22,6 @@ attrs==25.3.0
     #   referencing
 babel==2.17.0
     # via py-moneyed
-backports-datetime-fromisoformat==2.0.3
-    # via marshmallow
 bcrypt==4.0.1
     # via flexmeasures
 beautifulsoup4==4.13.4
@@ -184,8 +182,9 @@ markupsafe==3.0.2
     #   sentry-sdk
     #   werkzeug
     #   wtforms
-marshmallow==4.0.0
+marshmallow==3.26.1
     # via
+    #   -r requirements/app.in
     #   flask-marshmallow
     #   flexmeasures
     #   marshmallow-polyfield
@@ -236,6 +235,7 @@ openturns==1.24
 packaging==25.0
     # via
     #   altair
+    #   marshmallow
     #   matplotlib
     #   sktime
     #   statsmodels
@@ -405,7 +405,6 @@ typing-extensions==4.13.2
     #   beautifulsoup4
     #   flexcache
     #   flexparser
-    #   marshmallow
     #   pint
     #   py-moneyed
     #   pydantic
