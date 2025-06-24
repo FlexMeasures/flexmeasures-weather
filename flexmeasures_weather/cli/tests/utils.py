@@ -12,7 +12,7 @@ def cli_params_from_dict(d) -> List[str]:
     return cli_params
 
 
-def mock_owm_response(api_key, location):
+def mock_api_response(api_key, location):
     mock_date = datetime.now()
     mock_date_tz_aware = as_server_time(
         datetime.fromtimestamp(mock_date.timestamp(), tz=get_timezone())

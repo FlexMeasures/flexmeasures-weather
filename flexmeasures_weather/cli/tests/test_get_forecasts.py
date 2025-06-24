@@ -4,7 +4,7 @@ from flexmeasures.data.models.time_series import TimedBelief
 
 from ..commands import collect_weather_data
 from ...utils import weather
-from .utils import mock_owm_response
+from .utils import mock_api_response
 
 
 """
@@ -24,7 +24,7 @@ def test_get_weather_forecasts_to_db(
     weather_station = wind_sensor.generic_asset
 
     monkeypatch.setitem(app.config, "WEATHERAPI_KEY", "dummy")
-    monkeypatch.setattr(weather, "call_openweatherapi", mock_owm_response)
+    monkeypatch.setattr(weather, "call_api", mock_api_response)
 
     runner = app.test_cli_runner()
     result = runner.invoke(
@@ -54,7 +54,7 @@ def test_get_weather_forecasts_no_close_sensors(
     weather_station = add_weather_sensors_fresh_db["wind"].generic_asset
 
     monkeypatch.setitem(app.config, "WEATHERAPI_KEY", "dummy")
-    monkeypatch.setattr(weather, "call_openweatherapi", mock_owm_response)
+    monkeypatch.setattr(weather, "call_api", mock_api_response)
 
     runner = app.test_cli_runner()
     with caplog.at_level(logging.WARNING):
