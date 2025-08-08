@@ -68,45 +68,7 @@ def process_weatherapi_data(
     combined = first_day + second_day + third_day
 
     relevant = combined[hour_no : hour_no + 48]
-    # relevant = combined
-
-    def map_weather_api_to_owm(weather_api_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Converts a single hour of WeatherAPI data to an OpenWeatherMap-style dictionary.
-
-        Args:
-            weather_api_data (Dict[str, Any]): A dictionary containing an hour's data from WeatherAPI.
-
-        Returns:
-            Dict[str, Any]: A dictionary with keys and structure similar to OpenWeatherMap's hourly forecast.
-        """
-        game = {
-            "dt": weather_api_data["time_epoch"],
-            "temp": weather_api_data["temp_c"],
-            "feels_like": weather_api_data["feelslike_c"],
-            "pressure": weather_api_data["pressure_mb"],
-            "humidity": weather_api_data["humidity"],
-            "dew_point": weather_api_data["dewpoint_c"],
-            "uvi": weather_api_data["uv"],
-            "clouds": weather_api_data["cloud"],
-            "visibility": weather_api_data["vis_km"] * 1000,
-            "wind_speed": weather_api_data["wind_kph"] / 3.6,
-            "wind_deg": weather_api_data["wind_degree"],
-            "wind_gust": weather_api_data["gust_kph"] / 3.6,
-            "weather": [
-                {
-                    "id": weather_api_data["condition"]["code"],
-                    "main": weather_api_data["condition"]["text"].split()[0],
-                    "description": weather_api_data["condition"]["text"],
-                    "icon": weather_api_data["condition"]["icon"],
-                }
-            ],
-            "pop": weather_api_data["chance_of_rain"] / 100,
-        }
-        return game
-
-    converted = [map_weather_api_to_owm(hour) for hour in relevant]
-    return converted
+    return relevant
 
 
 def call_openweatherapi(
@@ -226,6 +188,7 @@ def save_forecasts_in_db(
         "WEATHER_MAXIMAL_DEGREE_LOCATION_DISTANCE",
         DEFAULT_MAXIMAL_DEGREE_LOCATION_DISTANCE,
     )
+    provider = str(current_app.config.get("WEATHER_PROVIDER", ""))
     for location in locations:
         click.echo("[FLEXMEASURES] %s, %s" % location)
         weather_sensors: Dict[str, Sensor] = (
@@ -246,8 +209,9 @@ def save_forecasts_in_db(
 
         # loop through forecasts, including the one of current hour (horizon 0)
         for fc in forecasts:
+            time_key = fc["dt"] if provider == "OWM" else fc["time_epoch"]
             fc_datetime = as_server_time(
-                datetime.fromtimestamp(fc["dt"], get_timezone())
+                datetime.fromtimestamp(time_key, get_timezone())
             )
             click.echo(
                 f"[FLEXMEASURES-WEATHER] Processing forecast for {fc_datetime} ..."
@@ -255,8 +219,8 @@ def save_forecasts_in_db(
             data_source = get_or_create_owm_data_source()
             for sensor_specs in mapping:
                 sensor_name = str(sensor_specs["fm_sensor_name"])
-                owm_response_label = sensor_specs["weather_sensor_name"]
-                if owm_response_label in fc:
+                provider_response_label = sensor_specs[f"{provider}_sensor_name"]
+                if provider_response_label in fc:
                     weather_sensor = get_weather_sensor(
                         sensor_specs,
                         location,
@@ -270,7 +234,11 @@ def save_forecasts_in_db(
                         if weather_sensor not in db_forecasts.keys():
                             db_forecasts[weather_sensor] = []
 
-                        fc_value = fc[owm_response_label]
+                        fc_value = fc[provider_response_label]
+
+                        if provider_response_label == 'wind_kph':
+                            # convert wind speed from kph to m/s
+                            fc_value = fc[provider_response_label] / 3.6                    
 
                         # the irradiance is not available in Provider -> we compute it ourselves
                         if sensor_name == "irradiance":
@@ -297,7 +265,7 @@ def save_forecasts_in_db(
                 else:
                     # we will not fail here, but issue a warning
                     msg = "No label '%s' in response data for time %s" % (
-                        owm_response_label,
+                        provider_response_label,
                         fc_datetime,
                     )
                     click.echo("[FLEXMEASURES-WEATHER] %s" % msg)
