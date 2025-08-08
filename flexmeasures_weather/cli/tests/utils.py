@@ -1,6 +1,6 @@
 from typing import List
 from datetime import datetime, timedelta
-
+from flask import current_app
 from flexmeasures.utils.time_utils import as_server_time, get_timezone
 
 
@@ -17,11 +17,21 @@ def mock_api_response(api_key, location):
     mock_date_tz_aware = as_server_time(
         datetime.fromtimestamp(mock_date.timestamp(), tz=get_timezone())
     ).replace(second=0, microsecond=0)
+
+    provider = str(current_app.config.get("WEATHER_PROVIDER", ""))
+    date_key = "dt"
+    temp_key = "temp"
+    wind_speed_key = "wind_speed"
+    if provider == "WAPI":
+        date_key = "time_epoch"
+        temp_key = "temp"
+        wind_speed_key = "wind_kph"
+
     return mock_date_tz_aware, [
-        {"dt": mock_date.timestamp(), "temp": 40, "wind_speed": 100},
+        {date_key: mock_date.timestamp(), temp_key: 40, wind_speed_key: 100},
         {
-            "dt": (mock_date + timedelta(hours=1)).timestamp(),
-            "temp": 42,
-            "wind_speed": 90,
+            date_key: (mock_date + timedelta(hours=1)).timestamp(),
+            temp_key: 42,
+            wind_speed_key: 90,
         },
     ]
