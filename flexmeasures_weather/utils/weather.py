@@ -174,7 +174,7 @@ def call_api(
         return call_weatherapi(api_key, location)
 
 
-def save_forecasts_in_db(
+def save_forecasts_in_db(  # noqa: C901
     api_key: str,
     locations: List[Tuple[float, float]],
 ):
@@ -236,9 +236,9 @@ def save_forecasts_in_db(
 
                         fc_value = fc[provider_response_label]
 
-                        if provider_response_label == 'wind_kph':
+                        if provider_response_label == "wind_kph":
                             # convert wind speed from kph to m/s
-                            fc_value = fc[provider_response_label] / 3.6                    
+                            fc_value = fc[provider_response_label] / 3.6
 
                         # the irradiance is not available in Provider -> we compute it ourselves
                         if sensor_name == "irradiance":
