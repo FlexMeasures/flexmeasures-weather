@@ -1,8 +1,9 @@
+import inspect
 from packaging import version
 
 from flask import current_app
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-from flexmeasures import Source, __version__ as flexmeasures_version
+from flexmeasures import Account, Source, __version__ as flexmeasures_version
 from flexmeasures.data import db
 from flexmeasures.data.services.data_sources import get_or_create_source
 
@@ -17,26 +18,47 @@ else:
     SOURCE_TYPE = "forecaster"
 
 
+def get_or_create_weather_account() -> Account:
+    """Make sure we have an account for the weather provider service."""
+    account_name = current_app.config.get(
+        "WEATHER_DATA_SOURCE_NAME", DEFAULT_DATA_SOURCE_NAME
+    )
+    weather_account = Account.query.filter(
+        Account.name == account_name,
+    ).one_or_none()
+    if weather_account is None:
+        weather_account = Account(name=account_name)
+        db.session.add(weather_account)
+        db.session.flush()
+    return weather_account
+
+
 def get_or_create_owm_data_source() -> Source:
     """Make sure we have an data source"""
-    return get_or_create_source(
+    source_kwargs = dict(
         source=current_app.config.get(
             "WEATHER_DATA_SOURCE_NAME", DEFAULT_DATA_SOURCE_NAME
         ),
-        source_type=SOURCE_TYPE,
+        source_type="market",
         flush=False,
     )
+    if "account" in inspect.signature(get_or_create_source).parameters:
+        source_kwargs["account"] = get_or_create_weather_account()
+    return get_or_create_source(**source_kwargs)
 
 
 def get_or_create_owm_data_source_for_derived_data() -> Source:
     owm_source_name = current_app.config.get(
         "WEATHER_DATA_SOURCE_NAME", DEFAULT_DATA_SOURCE_NAME
     )
-    return get_or_create_source(
+    source_kwargs = dict(
         source=f"FlexMeasures {owm_source_name}",
         source_type=SOURCE_TYPE,
         flush=False,
     )
+    if "account" in inspect.signature(get_or_create_source).parameters:
+        source_kwargs["account"] = get_or_create_weather_account()
+    return get_or_create_source(**source_kwargs)
 
 
 def get_or_create_weather_station_type() -> GenericAssetType:
