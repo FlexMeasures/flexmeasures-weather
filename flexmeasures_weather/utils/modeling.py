@@ -34,7 +34,7 @@ def get_or_create_weather_account() -> Account:
 
 
 def get_or_create_owm_data_source() -> Source:
-    """Make sure we have an data source"""
+    """Make sure we have a raw weather provider data source of type "market"."""
     source_kwargs = dict(
         source=current_app.config.get(
             "WEATHER_DATA_SOURCE_NAME", DEFAULT_DATA_SOURCE_NAME
