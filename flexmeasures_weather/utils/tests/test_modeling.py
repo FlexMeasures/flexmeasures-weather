@@ -5,7 +5,7 @@ from flexmeasures import Asset
 from flexmeasures import Account
 
 import flexmeasures_weather.utils.modeling as modeling
-from flexmeasures_weather import DEFAULT_WEATHER_STATION_NAME
+from flexmeasures_weather import DEFAULT_DATA_SOURCE_NAME, DEFAULT_WEATHER_STATION_NAME
 from flexmeasures_weather.utils.modeling import (
     SOURCE_TYPE,
     get_or_create_owm_data_source,
@@ -24,7 +24,7 @@ def test_creating_two_weather_stations(fresh_db):
 def test_get_or_create_weather_account(fresh_db):
     weather_account = get_or_create_weather_account()
 
-    assert weather_account.name == "Weather"
+    assert weather_account.name == DEFAULT_DATA_SOURCE_NAME
     assert Account.query.filter(Account.name == weather_account.name).count() == 1
 
 
