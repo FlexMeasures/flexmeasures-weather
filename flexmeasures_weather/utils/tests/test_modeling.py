@@ -6,6 +6,7 @@ from flexmeasures import Account
 
 from flexmeasures_weather import DEFAULT_WEATHER_STATION_NAME
 from flexmeasures_weather.utils.modeling import (
+    SOURCE_TYPE,
     get_or_create_owm_data_source,
     get_or_create_owm_data_source_for_derived_data,
     get_or_create_weather_account,
@@ -47,7 +48,7 @@ def test_get_or_create_owm_data_source_registers_market_source_on_weather_accoun
 def test_get_or_create_owm_data_source_for_derived_data_uses_weather_account(fresh_db):
     derived_data_source = get_or_create_owm_data_source_for_derived_data()
 
-    assert derived_data_source.type == "forecaster"
+    assert derived_data_source.type == SOURCE_TYPE
     if (
         "account"
         in inspect.signature(
@@ -110,5 +111,5 @@ def test_get_or_create_owm_derived_data_source_passes_weather_account_when_suppo
 
     data_source = get_or_create_owm_data_source_for_derived_data()
 
-    assert data_source.type == "forecaster"
+    assert data_source.type == SOURCE_TYPE
     assert captured_kwargs["account"].name == "Weather"
