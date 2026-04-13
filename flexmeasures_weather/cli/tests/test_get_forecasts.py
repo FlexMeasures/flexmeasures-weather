@@ -60,7 +60,10 @@ def test_get_weather_forecasts_no_close_sensors(
     with caplog.at_level(logging.WARNING):
         result = runner.invoke(
             collect_weather_data,
-            ["--location", f"{weather_station.latitude-5},{weather_station.longitude}"],
+            [
+                "--location",
+                f"{weather_station.latitude - 5},{weather_station.longitude}",
+            ],
         )
         print(result.output)
         assert "Reported task get-weather-forecasts status as True" in result.output
