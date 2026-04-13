@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from flexmeasures import Asset
 from flexmeasures import Account
 
+import flexmeasures_weather.utils.modeling as modeling
 from flexmeasures_weather import DEFAULT_WEATHER_STATION_NAME
 from flexmeasures_weather.utils.modeling import (
     SOURCE_TYPE,
@@ -33,12 +34,7 @@ def test_get_or_create_owm_data_source_registers_market_source_on_weather_accoun
     data_source = get_or_create_owm_data_source()
 
     assert data_source.type == "market"
-    if (
-        "account"
-        in inspect.signature(
-            get_or_create_owm_data_source.__globals__["get_or_create_source"]
-        ).parameters
-    ):
+    if "account" in inspect.signature(modeling.get_or_create_source).parameters:
         assert data_source.account is not None
         assert data_source.account.name == data_source.name
     else:
@@ -49,12 +45,7 @@ def test_get_or_create_owm_data_source_for_derived_data_uses_weather_account(fre
     derived_data_source = get_or_create_owm_data_source_for_derived_data()
 
     assert derived_data_source.type == SOURCE_TYPE
-    if (
-        "account"
-        in inspect.signature(
-            get_or_create_owm_data_source.__globals__["get_or_create_source"]
-        ).parameters
-    ):
+    if "account" in inspect.signature(modeling.get_or_create_source).parameters:
         assert derived_data_source.account is not None
         assert derived_data_source.account.name == "Weather"
     else:
