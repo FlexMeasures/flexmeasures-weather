@@ -72,6 +72,10 @@ def test_get_or_create_owm_data_source_passes_weather_account_when_supported(
         "flexmeasures_weather.utils.modeling.get_or_create_source",
         fake_get_or_create_source,
     )
+    monkeypatch.setattr(
+        "flexmeasures_weather.utils.modeling.SUPPORTS_SOURCE_ACCOUNT",
+        True,
+    )
 
     data_source = get_or_create_owm_data_source()
 
@@ -98,6 +102,10 @@ def test_get_or_create_owm_derived_data_source_passes_weather_account_when_suppo
     monkeypatch.setattr(
         "flexmeasures_weather.utils.modeling.get_or_create_source",
         fake_get_or_create_source,
+    )
+    monkeypatch.setattr(
+        "flexmeasures_weather.utils.modeling.SUPPORTS_SOURCE_ACCOUNT",
+        True,
     )
 
     data_source = get_or_create_owm_data_source_for_derived_data()
