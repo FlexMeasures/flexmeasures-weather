@@ -17,6 +17,10 @@ if version.parse(flexmeasures_version) < version.parse("0.13"):
 else:
     SOURCE_TYPE = "forecaster"
 
+SUPPORTS_SOURCE_ACCOUNT = (
+    "account" in inspect.signature(get_or_create_source).parameters
+)
+
 
 def get_or_create_weather_account() -> Account:
     """Make sure we have an account for the weather provider service."""
@@ -42,7 +46,7 @@ def get_or_create_owm_data_source() -> Source:
         source_type="market",
         flush=False,
     )
-    if "account" in inspect.signature(get_or_create_source).parameters:
+    if SUPPORTS_SOURCE_ACCOUNT:
         source_kwargs["account"] = get_or_create_weather_account()
     return get_or_create_source(**source_kwargs)
 
@@ -56,7 +60,7 @@ def get_or_create_owm_data_source_for_derived_data() -> Source:
         source_type=SOURCE_TYPE,
         flush=False,
     )
-    if "account" in inspect.signature(get_or_create_source).parameters:
+    if SUPPORTS_SOURCE_ACCOUNT:
         source_kwargs["account"] = get_or_create_weather_account()
     return get_or_create_source(**source_kwargs)
 
