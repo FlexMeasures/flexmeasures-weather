@@ -38,12 +38,12 @@ def get_or_create_weather_account() -> Account:
 
 
 def get_or_create_owm_data_source() -> Source:
-    """Make sure we have a raw weather provider data source of type "market"."""
+    """Make sure we have a weather provider data source of the configured type."""
     source_kwargs = dict(
         source=current_app.config.get(
             "WEATHER_DATA_SOURCE_NAME", DEFAULT_DATA_SOURCE_NAME
         ),
-        source_type="market",
+        source_type=SOURCE_TYPE,
         flush=False,
     )
     if SUPPORTS_SOURCE_ACCOUNT:
