@@ -28,12 +28,12 @@ def test_get_or_create_weather_account(fresh_db):
     assert Account.query.filter(Account.name == weather_account.name).count() == 1
 
 
-def test_get_or_create_owm_data_source_registers_market_source_on_weather_account(
+def test_get_or_create_owm_data_source_registers_weather_source_on_weather_account(
     fresh_db,
 ):
     data_source = get_or_create_owm_data_source()
 
-    assert data_source.type == "market"
+    assert data_source.type == SOURCE_TYPE
     if "account" in inspect.signature(modeling.get_or_create_source).parameters:
         assert data_source.account is not None
         assert data_source.account.name == data_source.name
@@ -79,8 +79,8 @@ def test_get_or_create_owm_data_source_passes_weather_account_when_supported(
 
     data_source = get_or_create_owm_data_source()
 
-    assert data_source.type == "market"
-    assert captured_kwargs["account"].name == "Weather"
+    assert data_source.type == SOURCE_TYPE
+    assert captured_kwargs["account"].name == DEFAULT_DATA_SOURCE_NAME
 
 
 def test_get_or_create_owm_derived_data_source_passes_weather_account_when_supported(
@@ -111,4 +111,4 @@ def test_get_or_create_owm_derived_data_source_passes_weather_account_when_suppo
     data_source = get_or_create_owm_data_source_for_derived_data()
 
     assert data_source.type == SOURCE_TYPE
-    assert captured_kwargs["account"].name == "Weather"
+    assert captured_kwargs["account"].name == DEFAULT_DATA_SOURCE_NAME
