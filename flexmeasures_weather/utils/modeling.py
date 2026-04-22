@@ -1,9 +1,8 @@
-import inspect
 from packaging import version
 
 from flask import current_app
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-from flexmeasures import Account, Source, __version__ as flexmeasures_version
+from flexmeasures import Source, __version__ as flexmeasures_version
 from flexmeasures.data import db
 from flexmeasures.data.services.data_sources import get_or_create_source
 
@@ -17,13 +16,22 @@ if version.parse(flexmeasures_version) < version.parse("0.13"):
 else:
     SOURCE_TYPE = "forecaster"
 
-SUPPORTS_SOURCE_ACCOUNT = (
-    "account" in inspect.signature(get_or_create_source).parameters
-)
+FM_SUPPORTS_ACCOUNT_LINKED_SOURCES = version.parse(
+    flexmeasures_version
+) >= version.parse("0.32")
+
+if FM_SUPPORTS_ACCOUNT_LINKED_SOURCES:
+    from flexmeasures import Account
+else:
+    Account = None
 
 
-def get_or_create_weather_account() -> Account:
+def get_or_create_weather_account():
     """Make sure we have an account for the weather provider service."""
+    if Account is None:
+        raise RuntimeError(
+            "FlexMeasures Account model is unavailable before FlexMeasures 0.32."
+        )
     account_name = current_app.config.get(
         "WEATHER_DATA_SOURCE_NAME", DEFAULT_DATA_SOURCE_NAME
     )
@@ -46,7 +54,7 @@ def get_or_create_owm_data_source() -> Source:
         source_type=SOURCE_TYPE,
         flush=False,
     )
-    if SUPPORTS_SOURCE_ACCOUNT:
+    if FM_SUPPORTS_ACCOUNT_LINKED_SOURCES:
         source_kwargs["account"] = get_or_create_weather_account()
     return get_or_create_source(**source_kwargs)
 
@@ -60,7 +68,7 @@ def get_or_create_owm_data_source_for_derived_data() -> Source:
         source_type=SOURCE_TYPE,
         flush=False,
     )
-    if SUPPORTS_SOURCE_ACCOUNT:
+    if FM_SUPPORTS_ACCOUNT_LINKED_SOURCES:
         source_kwargs["account"] = get_or_create_weather_account()
     return get_or_create_source(**source_kwargs)
 
