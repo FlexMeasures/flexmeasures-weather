@@ -198,7 +198,7 @@ def call_api(
         Exception: If an invalid weather provider is configured.
     """
 
-    provider = str(current_app.config.get("WEATHER_PROVIDER", ""))
+    provider = str(current_app.config.get("WEATHER_PROVIDER", "OWM"))
     if provider not in ["OWM", "WAPI"]:
         raise Exception(
             "Invalid provider name. Please set WEATHER_PROVIDER setting in config file to either OWM or WAPI, the two permissible options."
