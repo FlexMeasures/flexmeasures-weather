@@ -28,7 +28,7 @@ class WeatherSensorSchema(Schema):
     )
 
     @validates("name")
-    def validate_name_is_supported(self, name: str):
+    def validate_name_is_supported(self, name: str, **kwargs):
         if get_supported_sensor_spec(name):
             return
         raise ValidationError(
@@ -36,7 +36,7 @@ class WeatherSensorSchema(Schema):
         )
 
     @validates("timezone")
-    def validate_timezone(self, timezone: str):
+    def validate_timezone(self, timezone: str, **kwargs):
         try:
             pytz.timezone(timezone)
         except pytz.UnknownTimeZoneError:

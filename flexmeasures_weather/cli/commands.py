@@ -162,7 +162,11 @@ def collect_weather_data(location, asset_id, store_in_db, num_cells, method, reg
     a geometrical grid (See the --location parameter).
     """
 
-    api_key = str(current_app.config.get("WEATHERAPI_KEY", ""))
+    api_key = str(
+        current_app.config.get(
+            "WEATHERAPI_KEY", current_app.config.get("OPENWEATHERMAP_API_KEY", "")
+        )
+    )
     if api_key == "":
         raise Exception("[FLEXMEASURES-WEATHER] Setting WEATHERAPI_KEY not available.")
     if asset_id is not None:
