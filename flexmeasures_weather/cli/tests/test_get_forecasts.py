@@ -1,5 +1,6 @@
 import logging
 
+import pytest
 from flexmeasures.data.models.time_series import TimedBelief
 
 from ..commands import collect_weather_data
@@ -24,6 +25,7 @@ def test_get_weather_forecasts_to_db(
     weather_station = wind_sensor.generic_asset
 
     monkeypatch.setitem(app.config, "WEATHERAPI_KEY", "dummy")
+    monkeypatch.setitem(app.config, "WEATHER_PROVIDER", "OWM")
     monkeypatch.setattr(weather, "call_api", mock_api_response)
 
     runner = app.test_cli_runner()
@@ -44,6 +46,38 @@ def test_get_weather_forecasts_to_db(
         assert wind_speed in [belief.event_value for belief in beliefs]
 
 
+def test_get_weather_forecasts_wapi_mapping(
+    app, fresh_db, monkeypatch, run_as_cli, add_weather_sensors_fresh_db
+):
+    """
+    Test that WeatherAPI provider-specific field names are mapped independently.
+    """
+    wind_sensor = add_weather_sensors_fresh_db["wind"]
+    fresh_db.session.flush()
+    wind_sensor_id = wind_sensor.id
+    weather_station = wind_sensor.generic_asset
+
+    monkeypatch.setitem(app.config, "WEATHERAPI_KEY", "dummy")
+    monkeypatch.setitem(app.config, "WEATHER_PROVIDER", "WAPI")
+    monkeypatch.setattr(weather, "call_api", mock_api_response)
+
+    runner = app.test_cli_runner()
+    result = runner.invoke(
+        collect_weather_data,
+        ["--location", f"{weather_station.latitude},{weather_station.longitude}"],
+    )
+    assert "Reported task get-weather-forecasts status as True" in result.output
+
+    beliefs = (
+        fresh_db.session.query(TimedBelief)
+        .filter(TimedBelief.sensor_id == wind_sensor_id)
+        .all()
+    )
+    assert len(beliefs) == 2
+    expected_values = [pytest.approx(100 / 3.6), pytest.approx(90 / 3.6)]
+    assert [belief.event_value for belief in beliefs] == expected_values
+
+
 def test_get_weather_forecasts_no_close_sensors(
     app, db, monkeypatch, run_as_cli, add_weather_sensors_fresh_db, caplog
 ):
@@ -54,6 +88,7 @@ def test_get_weather_forecasts_no_close_sensors(
     weather_station = add_weather_sensors_fresh_db["wind"].generic_asset
 
     monkeypatch.setitem(app.config, "WEATHERAPI_KEY", "dummy")
+    monkeypatch.setitem(app.config, "WEATHER_PROVIDER", "OWM")
     monkeypatch.setattr(weather, "call_api", mock_api_response)
 
     runner = app.test_cli_runner()

@@ -24,7 +24,7 @@ def mock_api_response(api_key, location):
     wind_speed_key = "wind_speed"
     if provider == "WAPI":
         date_key = "time_epoch"
-        temp_key = "temp"
+        temp_key = "temp_c"
         wind_speed_key = "wind_kph"
 
     return mock_date_tz_aware, [

@@ -91,7 +91,21 @@ To expand the plugin's coverage to additional weather API services:
 
    This function should return data in the same structure as used by the original OpenWeatherMap integration, and **must have at least 48 hours of forecast data from the time of the call**.
 
-3. **Integrate into the plugin**  
+   You also need a provider-specific mapping entry in `flexmeasures_weather/sensor_specs.py`. Each supported sensor should include the new provider's response field name, for example:
+
+   ```python
+   dict(
+       fm_sensor_name="temperature",
+       OWM_sensor_name="temp",
+       WAPI_sensor_name="temp_c",
+       NEWAPI_sensor_name="temperatureC",
+       unit="°C",
+       event_resolution=timedelta(minutes=60),
+       attributes=weather_attributes,
+   )
+   ```
+
+3. **Integrate into the plugin**
    Modify the `call_api` function in the `weather.py` file to include a conditional branch for the new provider:
 
    ```python

@@ -189,6 +189,10 @@ def save_forecasts_in_db(  # noqa: C901
         DEFAULT_MAXIMAL_DEGREE_LOCATION_DISTANCE,
     )
     provider = str(current_app.config.get("WEATHER_PROVIDER", ""))
+    if provider not in ["OWM", "WAPI"]:
+        raise Exception(
+            "Invalid provider name. Please set WEATHER_PROVIDER setting in config file to either OWM or WAPI, the two permissible options."
+        )
     for location in locations:
         click.echo("[FLEXMEASURES] %s, %s" % location)
         weather_sensors: Dict[str, Sensor] = (
@@ -204,7 +208,7 @@ def save_forecasts_in_db(  # noqa: C901
                 f"[FLEXMEASURES-WEATHER] Warning: difference between this server and Weather Provider is {naturaldelta(diff_fm_owm)}"
             )
         click.echo(
-            f"[FLEXMEASURES-WEATHER] Called OpenWeatherMap API successfully at {now}."
+            f"[FLEXMEASURES-WEATHER] Called weather provider {provider} API successfully at {now}."
         )
 
         # loop through forecasts, including the one of current hour (horizon 0)
