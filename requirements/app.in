@@ -1,6 +1,4 @@
 flexmeasures
-# remove when FlexMeasures also removes this
-marshmallow>=3,<4
 pvlib
 # the following three are optional in pvlib, but we use them
 netCDF4
