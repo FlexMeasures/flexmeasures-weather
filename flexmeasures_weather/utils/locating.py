@@ -114,9 +114,7 @@ def find_weather_sensor_by_location(
 
 def get_location_by_asset_id(asset_id: int) -> Tuple[float, float]:
     """Get location for forecasting by passing an asset id"""
-    asset = GenericAsset.query.filter(
-        GenericAsset.generic_asset_type_id == asset_id
-    ).one_or_none()
+    asset = GenericAsset.query.filter(GenericAsset.id == asset_id).one_or_none()
     if asset.generic_asset_type.name != WEATHER_STATION_TYPE_NAME:
         raise Exception(
             f"Asset {asset} does not seem to be a weather station we should use ― we expect an asset with type '{WEATHER_STATION_TYPE_NAME}'."
