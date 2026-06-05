@@ -61,17 +61,17 @@ Add the following entries to your config:
 
 ```ini
 # Select the weather provider to use: "OWM" (OpenWeatherMap) or "WAPI" (Weather API)
-WEATHER_PROVIDER = OWM
+WEATHER_PROVIDER = "OWM"
 
 # API key for the selected weather provider
-WEATHERAPI_KEY = your-api-key-here
+WEATHERAPI_KEY = "your-api-key-here"
 
 # Name to register the weather data source in FlexMeasures. The default is 'Weather'.
 # Examples: "OpenWeatherMap" (for backwards compatibility with the OWM plugin).
-WEATHER_DATA_SOURCE_NAME = 'OpenWeatherMap'
+WEATHER_DATA_SOURCE_NAME = "OpenWeatherMap"
 
 # File path to store weather data in JSON format
-WEATHER_FILE_PATH_LOCATION = /path/to/weather_output.json
+WEATHER_FILE_PATH_LOCATION = "/path/to/weather_output.json"
 ```
 
 ### Extending to Other Weather API Services
