@@ -35,9 +35,12 @@ setup(
     use_scm_version={"local_scheme": "no-local-version"},  # handled by setuptools_scm
     packages=find_packages(),
     include_package_data=True,  # setuptools_scm takes care of adding the files in SCM
+    python_requires=">=3.10, <3.13",  # FlexMeasures 1.0 supports these versions
     classifiers=[
         "Programming Language :: Python",
-        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
         "Development Status :: 3 - Alpha",
         "License :: OSI Approved :: Apache Software License",
         "Operating System :: OS Independent",

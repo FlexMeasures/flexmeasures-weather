@@ -1,8 +1,6 @@
-from packaging import version
-
 from flask import current_app
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
-from flexmeasures import Source, __version__ as flexmeasures_version
+from flexmeasures import Account, Source
 from flexmeasures.data import db
 from flexmeasures.data.services.data_sources import get_or_create_source
 
@@ -10,28 +8,11 @@ from flexmeasures_weather import DEFAULT_DATA_SOURCE_NAME
 from flexmeasures_weather import WEATHER_STATION_TYPE_NAME
 from flexmeasures_weather import DEFAULT_WEATHER_STATION_NAME
 
-
-if version.parse(flexmeasures_version) < version.parse("0.13"):
-    SOURCE_TYPE = "forecasting script"
-else:
-    SOURCE_TYPE = "forecaster"
-
-FM_SUPPORTS_ACCOUNT_LINKED_SOURCES = version.parse(
-    flexmeasures_version
-) >= version.parse("0.32")
-
-if FM_SUPPORTS_ACCOUNT_LINKED_SOURCES:
-    from flexmeasures import Account
-else:
-    Account = None
+SOURCE_TYPE = "forecaster"
 
 
 def get_or_create_weather_account():
     """Make sure we have an account for the weather provider service."""
-    if Account is None:
-        raise RuntimeError(
-            "FlexMeasures Account model is unavailable before FlexMeasures 0.32."
-        )
     account_name = current_app.config.get(
         "WEATHER_DATA_SOURCE_NAME", DEFAULT_DATA_SOURCE_NAME
     )
@@ -46,31 +27,32 @@ def get_or_create_weather_account():
 
 
 def get_or_create_owm_data_source() -> Source:
-    """Make sure we have a weather provider data source of the configured type."""
-    source_kwargs = dict(
+    """Make sure we have a weather provider data source of the configured type.
+
+    TODO: account scoping is newly active as of the FlexMeasures 1.0 upgrade, which
+          splits pre-upgrade weather sources from new ones. Maintainer call on whether
+          existing deployments need a migration - see docs/fm-1.0-upgrade-notes.md.
+    """
+    return get_or_create_source(
         source=current_app.config.get(
             "WEATHER_DATA_SOURCE_NAME", DEFAULT_DATA_SOURCE_NAME
         ),
         source_type=SOURCE_TYPE,
+        account=get_or_create_weather_account(),
         flush=False,
     )
-    if FM_SUPPORTS_ACCOUNT_LINKED_SOURCES:
-        source_kwargs["account"] = get_or_create_weather_account()
-    return get_or_create_source(**source_kwargs)
 
 
 def get_or_create_owm_data_source_for_derived_data() -> Source:
     owm_source_name = current_app.config.get(
         "WEATHER_DATA_SOURCE_NAME", DEFAULT_DATA_SOURCE_NAME
     )
-    source_kwargs = dict(
+    return get_or_create_source(
         source=f"FlexMeasures {owm_source_name}",
         source_type=SOURCE_TYPE,
+        account=get_or_create_weather_account(),
         flush=False,
     )
-    if FM_SUPPORTS_ACCOUNT_LINKED_SOURCES:
-        source_kwargs["account"] = get_or_create_weather_account()
-    return get_or_create_source(**source_kwargs)
 
 
 def get_or_create_weather_station_type() -> GenericAssetType:
@@ -87,18 +69,28 @@ def get_or_create_weather_station_type() -> GenericAssetType:
     return weather_station_type
 
 
-def get_or_create_weather_station(latitude: float, longitude: float) -> GenericAsset:
-    """Make sure a weather station exists at this location."""
+def make_weather_station_name(latitude: float, longitude: float) -> str:
+    """Name for the weather station at this location.
+
+    FlexMeasures >= 1.0 requires root asset names to be unique, and we create one station per location - see docs/fm-1.0-upgrade-notes.md.
+    """
     station_name = current_app.config.get(
         "WEATHER_STATION_NAME", DEFAULT_WEATHER_STATION_NAME
     )
+    suffix = f" ({round(latitude, 4)}, {round(longitude, 4)})"
+    # Truncate the configurable part, not the coordinates, so the name stays unique
+    return station_name[: 80 - len(suffix)] + suffix
+
+
+def get_or_create_weather_station(latitude: float, longitude: float) -> GenericAsset:
+    """Make sure a weather station exists at this location."""
     weather_station = GenericAsset.query.filter(
         GenericAsset.latitude == latitude, GenericAsset.longitude == longitude
     ).one_or_none()
     if weather_station is None:
         weather_station_type = get_or_create_weather_station_type()
         weather_station = GenericAsset(
-            name=station_name,
+            name=make_weather_station_name(latitude, longitude),
             generic_asset_type=weather_station_type,
             latitude=latitude,
             longitude=longitude,
