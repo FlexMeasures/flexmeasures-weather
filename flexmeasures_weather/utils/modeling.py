@@ -92,11 +92,13 @@ def get_or_create_weather_station(latitude: float, longitude: float) -> GenericA
     station_name = current_app.config.get(
         "WEATHER_STATION_NAME", DEFAULT_WEATHER_STATION_NAME
     )
+    weather_station_type = get_or_create_weather_station_type()
     weather_station = GenericAsset.query.filter(
-        GenericAsset.latitude == latitude, GenericAsset.longitude == longitude
+        GenericAsset.latitude == latitude,
+        GenericAsset.longitude == longitude,
+        GenericAsset.generic_asset_type == weather_station_type,
     ).one_or_none()
     if weather_station is None:
-        weather_station_type = get_or_create_weather_station_type()
         weather_station = GenericAsset(
             name=station_name,
             generic_asset_type=weather_station_type,
