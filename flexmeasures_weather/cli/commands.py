@@ -9,6 +9,8 @@ from flexmeasures.data.config import db
 
 from .. import flexmeasures_weather_bp
 from .schemas.weather_sensor import WeatherSensorSchema
+from ..pv.specs import PV_ATTRIBUTES, PVSpecsSchema
+from ..pv.utils.solar_power import DEFAULT_MOUNT, MOUNT_TEMPERATURE_MODELS
 from ..utils.modeling import (
     get_or_create_weather_station,
     get_weather_station_by_asset_id,
@@ -21,6 +23,9 @@ from ..utils.weather import (
     get_supported_sensor_spec,
 )
 from ..sensor_specs import mapping
+
+from flexmeasures.data.models.generic_assets import GenericAsset
+from marshmallow import ValidationError
 
 """
 TODO: allow to also pass an asset ID or name for the weather station (instead of location) to both commands?
@@ -98,8 +103,7 @@ def add_weather_sensor(**args):
     fm_sensor_specs["generic_asset"] = weather_station
     fm_sensor_specs["timezone"] = args["timezone"]
     fm_sensor_specs["name"] = fm_sensor_specs.pop("fm_sensor_name")
-    fm_sensor_specs.pop("OWM_sensor_name")
-    fm_sensor_specs.pop("WAPI_sensor_name")
+    fm_sensor_specs.pop("source_field")
     sensor = Sensor(**fm_sensor_specs)
     sensor.attributes = fm_sensor_specs["attributes"]
 
@@ -186,3 +190,107 @@ def collect_weather_data(location, asset_id, store_in_db, num_cells, method, reg
         save_forecasts_as_json(
             api_key, locations, data_path=make_file_path(current_app, region)
         )
+
+
+@flexmeasures_weather_bp.cli.command("register-pv-array")
+@with_appcontext
+@click.option(
+    "--asset-id",
+    required=True,
+    type=int,
+    help="The asset id of the PV installation whose specs you are registering.",
+)
+@click.option(
+    "--tilt",
+    required=True,
+    type=float,
+    help="Tilt of the array from horizontal, in degrees. 0 is flat, 90 is vertical.",
+)
+@click.option(
+    "--azimuth",
+    required=True,
+    type=float,
+    help="Direction the array faces, in degrees clockwise from north. 180 is south.",
+)
+@click.option(
+    "--capacity-kw",
+    required=True,
+    type=float,
+    help="DC nameplate capacity of the array, in kW (kWp).",
+)
+@click.option(
+    "--losses",
+    required=False,
+    type=float,
+    default=None,
+    help="Fraction of DC output lost to soiling, shading, mismatch, wiring and the like,"
+    " between 0 and 1. Defaults to the PVWatts default of 0.14.",
+)
+@click.option(
+    "--mount",
+    required=False,
+    type=click.Choice(sorted(MOUNT_TEMPERATURE_MODELS)),
+    default=None,
+    help="How the array is mounted, affecting how hot the cells run: 'open_rack'"
+    " (ground/pole-mounted or well-ventilated), 'close_mount' (roof-racked with limited"
+    " airflow behind the panels), or 'insulated_back' (flush-mounted or"
+    f" building-integrated). Defaults to '{DEFAULT_MOUNT}'.",
+)
+def register_pv_array(asset_id, tilt, azimuth, capacity_kw, losses, mount):
+    """
+    Register the specs of a PV array on its asset, for PV power forecasting.
+
+    These are stored as asset attributes, because they are physical properties of the
+    installation rather than of any one forecasting run. The stock
+    'flexmeasures edit attribute' command can write them one key at a time; this command
+    exists to validate a whole set of specs at once.
+
+    The array's location is taken from the asset's own latitude and longitude, so make
+    sure those are set too.
+    """
+    asset = GenericAsset.query.filter(GenericAsset.id == asset_id).one_or_none()
+    if asset is None:
+        click.echo(f"[FLEXMEASURES-WEATHER] No asset found with ID {asset_id}.")
+        raise click.Abort
+
+    specs = {
+        "pv_tilt": tilt,
+        "pv_azimuth": azimuth,
+        "pv_capacity_in_kw": capacity_kw,
+    }
+    if losses is not None:
+        specs["pv_losses"] = losses
+    if mount is not None:
+        specs["pv_mount"] = mount
+    try:
+        specs = PVSpecsSchema().load(specs)
+    except ValidationError as error:
+        click.echo(
+            "[FLEXMEASURES-WEATHER] Please correct the following errors:\n"
+            f"{error.messages}.\n Use the --help flag to learn more."
+        )
+        raise click.Abort
+
+    if asset.latitude is None or asset.longitude is None:
+        click.echo(
+            f"[FLEXMEASURES-WEATHER] Warning: asset {asset_id} has no latitude and/or"
+            " longitude yet. PV power forecasts need them, to compute solar positions."
+        )
+
+    # Assign a new dict rather than mutating in place: SQLAlchemy does not track
+    # mutations of a JSONB column, and GenericAsset.set_attribute only overwrites
+    # attributes that already exist.
+    asset.attributes = {**(asset.attributes or {}), **specs}
+    db.session.add(asset)
+    db.session.commit()
+
+    click.echo(
+        f"[FLEXMEASURES-WEATHER] Registered PV array specs on asset {asset.name}"
+        f" (ID {asset.id}): "
+        + ", ".join(f"{attribute}={specs[attribute]}" for attribute in PV_ATTRIBUTES)
+    )
+    click.echo(
+        "[FLEXMEASURES-WEATHER] You can now forecast its power output with:"
+        " flexmeasures add forecasts --sensor <power sensor ID>"
+        " --forecaster PVWattsForecaster"
+    )

@@ -66,3 +66,14 @@ flexmeasures_weather_bp: Blueprint = Blueprint(
 flexmeasures_weather_bp.cli.help = "flexmeasures-weather CLI commands"
 ensure_bp_routes_are_loaded_fresh("cli.commands")
 from flexmeasures_weather.cli import commands  # noqa: E402,F401
+
+# Exposing the forecaster here is what registers it: FlexMeasures scans a plugin's module
+# namespace for Forecaster subclasses (see flexmeasures.utils.plugin_utils), which makes
+# it selectable as `--forecaster PVWattsForecaster`.
+from flexmeasures_weather.pv.forecaster import PVWattsForecaster  # noqa: E402,F401
+
+# Same registration mechanism, for the Bright Sky + Open-Meteo blended alternative. See
+# docs/pv-power-design.md for how the two forecasters relate.
+from flexmeasures_weather.pv.blended_forecaster import (  # noqa: E402,F401
+    BlendedPVForecaster,
+)

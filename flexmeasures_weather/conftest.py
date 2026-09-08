@@ -42,7 +42,7 @@ def add_weather_sensors_fresh_db(fresh_db) -> Dict[str, Sensor]:  # noqa: F811
 
 
 def create_weather_sensors(db: SQLAlchemy):  # noqa: F811
-    """Add a weather station asset with two weather sensors."""
+    """Add a weather station asset with a few weather sensors."""
     weather_station_type = GenericAssetType(name=WEATHER_STATION_TYPE_NAME)
     db.session.add(weather_station_type)
 
@@ -69,4 +69,51 @@ def create_weather_sensors(db: SQLAlchemy):  # noqa: F811
         unit="°C",
     )
     db.session.add(temp_sensor)
-    return {"wind": wind_sensor, "temperature": temp_sensor}
+
+    irradiance_sensor = Sensor(
+        name="irradiance",
+        generic_asset=weather_station,
+        event_resolution=timedelta(minutes=60),
+        unit="W/m²",
+    )
+    db.session.add(irradiance_sensor)
+    return {
+        "wind": wind_sensor,
+        "temperature": temp_sensor,
+        "irradiance": irradiance_sensor,
+    }
+
+
+@pytest.fixture(scope="function")
+def add_pv_asset_fresh_db(
+    fresh_db,  # noqa: F811
+    add_weather_sensors_fresh_db,
+) -> Sensor:
+    """Add a PV installation with a power sensor, next to the test weather station.
+
+    Its array specs are deliberately *not* set: registering those is part of what the
+    tests exercise.
+    """
+    weather_station = add_weather_sensors_fresh_db["irradiance"].generic_asset
+
+    pv_type = GenericAssetType(name="solar")
+    fresh_db.session.add(pv_type)
+
+    pv_asset = GenericAsset(
+        name="Test PV array",
+        generic_asset_type=pv_type,
+        latitude=weather_station.latitude,
+        longitude=weather_station.longitude,
+    )
+    fresh_db.session.add(pv_asset)
+
+    power_sensor = Sensor(
+        name="power",
+        generic_asset=pv_asset,
+        event_resolution=timedelta(minutes=60),
+        unit="W",
+        timezone="Asia/Seoul",  # the test weather station sits on Jeju Island
+    )
+    fresh_db.session.add(power_sensor)
+    fresh_db.session.flush()
+    return power_sensor

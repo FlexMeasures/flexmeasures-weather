@@ -1,20 +1,26 @@
 from __future__ import annotations
 
-from typing import Tuple, List, Dict, Optional, Any
+from typing import Tuple, List, Dict, Optional, Callable
+import dataclasses
 import os
 from datetime import datetime, timedelta
 import json
 
 import click
 from flask import current_app
-import requests
 from humanize import naturaldelta
 from timely_beliefs import BeliefsDataFrame
-from flexmeasures.utils.time_utils import as_server_time, get_timezone, server_now
+from flexmeasures.utils.time_utils import as_server_time, server_now
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.utils import save_to_db
 
 from flexmeasures_weather import DEFAULT_MAXIMAL_DEGREE_LOCATION_DISTANCE
+from flexmeasures_weather.weather_providers import (
+    HourlyForecast,
+    OpenWeatherMapProvider,
+    WeatherApiProvider,
+    WeatherProvider,
+)
 from .locating import find_weather_sensor_by_location
 from ..sensor_specs import mapping
 from .modeling import (
@@ -22,9 +28,13 @@ from .modeling import (
     get_or_create_owm_data_source_for_derived_data,
 )
 from .radiating import compute_irradiance
-from zoneinfo import ZoneInfo
 
-API_VERSION = "3.0"
+# Registry of supported providers, keyed by WEATHER_PROVIDER config value. Each factory
+# takes the api_key and returns a ready-to-use provider instance.
+PROVIDERS: Dict[str, Tuple[str, Callable[[str], WeatherProvider]]] = {
+    "OWM": ("Open Weather Map", OpenWeatherMapProvider),
+    "WAPI": ("Weather API", WeatherApiProvider),
+}
 
 
 def get_supported_sensor_spec(name: str) -> Optional[dict]:
@@ -47,103 +57,9 @@ def get_supported_sensors_str() -> str:
     )
 
 
-def process_weatherapi_data(
-    data: List[Dict[str, Any]], hour_no: int
-) -> List[Dict[str, Any]]:
-    """
-    Processes raw WeatherAPI forecast data into a format similar to OpenWeatherMap's format.
-
-    Args:
-        data (List[Dict[str, Any]]): A list of forecast day dictionaries from WeatherAPI,
-            each containing an 'hour' key with 24 hourly entries.
-        hour_no (int): The index of the current hour to start from.
-
-    Returns:
-        List[Dict[str, Any]]: A list of 48 hourly forecast entries, each mapped to the
-        expected structure with fields like temperature, humidity, wind, and condition.
-    """
-    first_day = data[0]["hour"]
-    second_day = data[1]["hour"]
-    third_day = data[2]["hour"]
-    combined = first_day + second_day + third_day
-
-    relevant = combined[hour_no : hour_no + 48]
-    return relevant
-
-
-def call_openweatherapi(
-    api_key: str, location: Tuple[float, float]
-) -> Tuple[datetime, List[Dict]]:
-    """
-    Make a single "one-call" to the Open Weather API and return the API timestamp as well as the 48 hourly forecasts.
-    See https://openweathermap.org/api/one-call-3 for docs.
-    Note that the first forecast is about the current hour.
-    """
-    check_openweathermap_version(API_VERSION)
-    query_str = f"lat={location[0]}&lon={location[1]}&units=metric&exclude=minutely,daily,alerts&appid={api_key}"
-    res = requests.get(
-        f"http://api.openweathermap.org/data/{API_VERSION}/onecall?{query_str}"
-    )
-    assert (
-        res.status_code == 200
-    ), f"OpenWeatherMap returned status code {res.status_code}: {res.text}"
-    data = res.json()
-    time_of_api_call = as_server_time(
-        datetime.fromtimestamp(data["current"]["dt"], tz=get_timezone())
-    ).replace(second=0, microsecond=0)
-    return time_of_api_call, data["hourly"]
-
-
-def call_weatherapi(
-    api_key: str, location: Tuple[float, float], days: int = 3
-) -> Tuple[datetime, List[Dict]]:
-    """
-    Makes a request to the WeatherAPI to retrieve hourly weather forecast data.
-
-    Args:
-        api_key (str): API key for authenticating with the Weather API.
-        location (Tuple[float, float]): A tuple containing the latitude and longitude.
-        days (int, optional): Number of days to request the forecast for (default is 3, including current day).
-
-    Returns:
-        Tuple[datetime, List[Dict]]:
-            - The timestamp of the API call.
-            - A list of hourly forecast data as dictionaries. Note that the first forecast is about the current hour.
-
-    Raises:
-        AssertionError: If the response from the Weather API is not successful (HTTP status 200).
-    """
-
-    latitude, longitude = location[0], location[1]
-
-    query_str = f"http://api.weatherapi.com/v1/forecast.json?key={api_key}&q={latitude},{longitude}&days={days}&aqi=yes&alerts=yes"
-    res = requests.get(query_str)
-
-    assert (
-        res.status_code == 200
-    ), f"Weather API returned status code {res.status_code}: {res.text}"
-
-    data = res.json()
-
-    # get the time of the api call
-    time_of_call = int(data["location"]["localtime_epoch"])
-    local_timezone = ZoneInfo(data["location"]["tz_id"])
-    local_time = datetime.fromtimestamp(time_of_call, local_timezone)
-    time_of_api_call = as_server_time(local_time)
-    time_of_api_call = time_of_api_call.replace(second=0, microsecond=0)
-
-    print(f"Time of API call in WAPI is {time_of_api_call}")
-
-    relevant = data["forecast"]["forecastday"]
-    hour_no = local_time.hour
-
-    hourly = process_weatherapi_data(relevant, hour_no)
-    return time_of_api_call, hourly
-
-
 def call_api(
     api_key: str, location: Tuple[float, float]
-) -> Tuple[datetime, List[Dict]]:
+) -> Tuple[Optional[datetime], List[HourlyForecast]]:
     """
     Dispatches the weather API call based on the configured provider.
 
@@ -152,26 +68,25 @@ def call_api(
         location (Tuple[float, float]): Latitude and longitude tuple.
 
     Returns:
-        Tuple[datetime, List[Dict]]:
-            - Timestamp of the API call.
-            - List of hourly forecast data.
+        Tuple[Optional[datetime], List[HourlyForecast]]:
+            - Timestamp of the API call, if the provider reports one.
+            - List of hourly forecast records.
 
     Raises:
         Exception: If an invalid weather provider is configured.
     """
 
     provider = str(current_app.config.get("WEATHER_PROVIDER", "OWM"))
-    if provider not in ["OWM", "WAPI"]:
+    if provider not in PROVIDERS:
         raise Exception(
-            "Invalid provider name. Please set WEATHER_PROVIDER setting in config file to either OWM or WAPI, the two permissible options."
+            f"Invalid provider name. Please set WEATHER_PROVIDER setting in config file to one of {list(PROVIDERS)}."
         )
 
-    if provider == "OWM":
-        click.secho("Calling Open Weather Map")
-        return call_openweatherapi(api_key, location)
-    else:
-        click.secho("Calling Weather API")
-        return call_weatherapi(api_key, location)
+    provider_label, provider_class = PROVIDERS[provider]
+    click.secho(f"Calling {provider_label}")
+    weather_provider = provider_class(api_key)
+
+    return weather_provider.fetch_hourly_forecast_with_as_of(*location)
 
 
 def save_forecasts_in_db(  # noqa: C901
@@ -189,9 +104,9 @@ def save_forecasts_in_db(  # noqa: C901
         DEFAULT_MAXIMAL_DEGREE_LOCATION_DISTANCE,
     )
     provider = str(current_app.config.get("WEATHER_PROVIDER", ""))
-    if provider not in ["OWM", "WAPI"]:
+    if provider not in PROVIDERS:
         raise Exception(
-            "Invalid provider name. Please set WEATHER_PROVIDER setting in config file to either OWM or WAPI, the two permissible options."
+            f"Invalid provider name. Please set WEATHER_PROVIDER setting in config file to one of {list(PROVIDERS)}."
         )
     for location in locations:
         click.echo("[FLEXMEASURES] %s, %s" % location)
@@ -202,29 +117,27 @@ def save_forecasts_in_db(  # noqa: C901
 
         now = server_now()
         time_of_api_call, forecasts = call_api(api_key, location)
-        diff_fm_owm = now - time_of_api_call
-        if abs(diff_fm_owm) > timedelta(minutes=10):
-            click.echo(
-                f"[FLEXMEASURES-WEATHER] Warning: difference between this server and Weather Provider is {naturaldelta(diff_fm_owm)}"
-            )
+        if time_of_api_call is not None:
+            diff_fm_owm = now - time_of_api_call
+            if abs(diff_fm_owm) > timedelta(minutes=10):
+                click.echo(
+                    f"[FLEXMEASURES-WEATHER] Warning: difference between this server and Weather Provider is {naturaldelta(diff_fm_owm)}"
+                )
         click.echo(
             f"[FLEXMEASURES-WEATHER] Called weather provider {provider} API successfully at {now}."
         )
 
         # loop through forecasts, including the one of current hour (horizon 0)
         for fc in forecasts:
-            time_key = fc["dt"] if provider == "OWM" else fc["time_epoch"]
-            fc_datetime = as_server_time(
-                datetime.fromtimestamp(time_key, get_timezone())
-            )
+            fc_datetime = as_server_time(fc.time)
             click.echo(
                 f"[FLEXMEASURES-WEATHER] Processing forecast for {fc_datetime} ..."
             )
             data_source = get_or_create_owm_data_source()
             for sensor_specs in mapping:
                 sensor_name = str(sensor_specs["fm_sensor_name"])
-                provider_response_label = sensor_specs[f"{provider}_sensor_name"]
-                if provider_response_label in fc:
+                source_field = str(sensor_specs["source_field"])
+                if getattr(fc, source_field, None) is not None:
                     weather_sensor = get_weather_sensor(
                         sensor_specs,
                         location,
@@ -238,11 +151,7 @@ def save_forecasts_in_db(  # noqa: C901
                         if weather_sensor not in db_forecasts.keys():
                             db_forecasts[weather_sensor] = []
 
-                        fc_value = fc[provider_response_label]
-
-                        if provider_response_label == "wind_kph":
-                            # convert wind speed from kph to m/s
-                            fc_value = fc[provider_response_label] / 3.6
+                        fc_value = getattr(fc, source_field)
 
                         # the irradiance is not available in Provider -> we compute it ourselves
                         if sensor_name == "irradiance":
@@ -250,12 +159,16 @@ def save_forecasts_in_db(  # noqa: C901
                                 location[0],
                                 location[1],
                                 fc_datetime,
-                                # Provider sends cloud cover in percent, we need a ratio
-                                fc_value / 100.0,
+                                # HourlyForecast.cloud_cover_fraction is already a 0-1 ratio
+                                fc_value,
                             )
                             data_source = (
                                 get_or_create_owm_data_source_for_derived_data()
                             )
+                        elif sensor_name == "cloud cover":
+                            # The "cloud cover" sensor stores a percent, but
+                            # HourlyForecast.cloud_cover_fraction is a 0-1 ratio.
+                            fc_value = fc_value * 100.0
 
                         db_forecasts[weather_sensor].append(
                             TimedBelief(
@@ -268,8 +181,8 @@ def save_forecasts_in_db(  # noqa: C901
                         )
                 else:
                     # we will not fail here, but issue a warning
-                    msg = "No label '%s' in response data for time %s" % (
-                        provider_response_label,
+                    msg = "No value for '%s' in response data for time %s" % (
+                        source_field,
                         fc_datetime,
                     )
                     click.echo("[FLEXMEASURES-WEATHER] %s" % msg)
@@ -330,11 +243,12 @@ def save_forecasts_as_json(
         click.echo("[FLEXMEASURES-WEATHER] %s, %s" % location)
         now = server_now()
         time_of_api_call, forecasts = call_api(api_key, location)
-        diff_fm_owm = now - time_of_api_call
-        if abs(diff_fm_owm) > timedelta(minutes=10):
-            click.echo(
-                f"[FLEXMEASURES-WEATHER] Warning: difference between this server and Weather Provider is {naturaldelta(diff_fm_owm)}"
-            )
+        if time_of_api_call is not None:
+            diff_fm_owm = now - time_of_api_call
+            if abs(diff_fm_owm) > timedelta(minutes=10):
+                click.echo(
+                    f"[FLEXMEASURES-WEATHER] Warning: difference between this server and Weather Provider is {naturaldelta(diff_fm_owm)}"
+                )
         now_str = now.strftime("%Y-%m-%dT%H-%M-%S")
         path_to_files = os.path.join(data_path, now_str)
         if not os.path.exists(path_to_files):
@@ -346,12 +260,12 @@ def save_forecasts_as_json(
             str(location[1]),
         )
         with open(forecasts_file, "w") as outfile:
-            json.dump(forecasts, outfile)
-
-
-def check_openweathermap_version(api_version: str):
-    supported_versions = ["2.5", "3.0"]
-    if api_version not in supported_versions:
-        current_app.logger.warning(
-            f"This plugin may not be fully compatible with OpenWeatherMap API version {api_version}. We tested with versions {supported_versions}"
-        )
+            # `default=str` covers the "time" field's datetime, not JSON-serializable
+            # out of the box.
+            # HourlyForecast is a pydantic dataclass; mypy's dataclasses.asdict overloads
+            # don't recognize it as a DataclassInstance even though it works at runtime.
+            json.dump(
+                [dataclasses.asdict(fc) for fc in forecasts],  # type: ignore[call-overload]
+                outfile,
+                default=str,
+            )
