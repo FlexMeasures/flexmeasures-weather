@@ -1,12 +1,10 @@
 import logging
 
-import pytest
 from flexmeasures.data.models.time_series import TimedBelief
 
 from ..commands import collect_weather_data
 from ...utils import weather
 from .utils import mock_api_response
-
 
 """
 Useful resource: https://flask.palletsprojects.com/en/2.0.x/testing/#testing-cli-commands
@@ -46,11 +44,15 @@ def test_get_weather_forecasts_to_db(
         assert wind_speed in [belief.event_value for belief in beliefs]
 
 
-def test_get_weather_forecasts_wapi_mapping(
+def test_get_weather_forecasts_wapi_provider_passes_through(
     app, fresh_db, monkeypatch, run_as_cli, add_weather_sensors_fresh_db
 ):
     """
-    Test that WeatherAPI provider-specific field names are mapped independently.
+    With WEATHER_PROVIDER=WAPI, `save_forecasts_in_db` still reads `HourlyForecast`
+    records generically via `sensor_specs["source_field"]` - no WeatherAPI-specific field
+    mapping happens in this code path any more (that now lives entirely inside
+    `WeatherApiProvider`, and is covered by its own unit test). This just confirms the WAPI
+    branch doesn't do anything unexpected to the (already-normalized) values.
     """
     wind_sensor = add_weather_sensors_fresh_db["wind"]
     fresh_db.session.flush()
@@ -74,8 +76,8 @@ def test_get_weather_forecasts_wapi_mapping(
         .all()
     )
     assert len(beliefs) == 2
-    expected_values = [pytest.approx(100 / 3.6), pytest.approx(90 / 3.6)]
-    assert [belief.event_value for belief in beliefs] == expected_values
+    for wind_speed in (100, 90):
+        assert wind_speed in [belief.event_value for belief in beliefs]
 
 
 def test_get_weather_forecasts_no_close_sensors(
