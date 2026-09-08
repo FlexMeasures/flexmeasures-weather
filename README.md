@@ -25,6 +25,88 @@ Notes about weather sensor setup:
 - Weather sensors are public assets in FlexMeasures. They are accessible by all accounts on a FlexMeasures server.
 - The resolution is one hour. Weather also supports minutely data within the upcoming hour(s), but that is not supported here.
 
+## Forecasting PV power output
+
+Once you have an `irradiance` sensor with forecasts, this plugin can turn those into an
+expected AC power forecast for a specific PV array, using pvlib. This needs no metered
+history at all, which is what makes it useful for a newly commissioned array or one without historical data - and it makes
+a good regressor for FlexMeasures' own trained forecaster once history does exist. See
+[docs/pv-power-design.md](docs/pv-power-design.md).
+
+First, register an irradiance sensor at the array's location, and collect forecasts for it:
+
+`flexmeasures weather register-weather-sensor --name irradiance --latitude 52.09 --longitude 5.12`
+
+`flexmeasures weather get-weather-forecasts --location 52.09,5.12`
+
+Then register the array's specs on its asset. The asset needs a latitude and longitude of
+its own (pvlib computes solar positions from those), and a power sensor to forecast onto:
+
+`flexmeasures weather register-pv-array --asset-id 7 --tilt 30 --azimuth 180 --capacity-kw 5.4`
+
+- `--tilt`: degrees from horizontal; 0 is flat, 90 is vertical.
+- `--azimuth`: degrees clockwise from north; 180 is south.
+- `--capacity-kw`: DC nameplate capacity in kW (kWp).
+- `--losses` (optional): aggregate DC loss fraction, defaulting to the PVWatts 0.14. Raise
+  it for a shaded or soiled array.
+- `--mount` (optional): how the array is mounted, affecting how hot the cells run:
+  `open_rack` (ground/pole-mounted or well-ventilated), `close_mount` (roof-racked with
+  limited airflow behind the panels), or `insulated_back` (flush-mounted or
+  building-integrated). Defaults to `close_mount`.
+
+These are stored as the asset attributes `pv_tilt`, `pv_azimuth`, `pv_capacity_in_kw`,
+`pv_losses` and `pv_mount`. Stock `flexmeasures edit attribute` can write them one at a time; this command
+exists to validate a whole set at once.
+
+Now forecast:
+
+`flexmeasures add forecasts --sensor 42 --forecaster PVWattsForecaster`
+
+where 42 is the array's power sensor. The forecaster picks the nearest registered
+irradiance sensor. Everything else is the stock `flexmeasures add forecasts` interface, so
+`--start`, `--end`, `--duration`, `--max-forecast-horizon` and `--forecast-frequency` all
+work as usual, and `flexmeasures show forecasters` should list `PVWattsForecaster`. Note
+that `--as-job` is not supported: pvlib computes in milliseconds, so there is nothing to
+queue.
+
+To point at a specific irradiance sensor, or to try out different array specs without
+editing the asset, pass a config file:
+
+```json
+{
+  "irradiance-sensor": 39,
+  "tilt": 15
+}
+```
+
+`flexmeasures add forecasts --sensor 42 --forecaster PVWattsForecaster --config whatif.json`
+
+Because the array specs live on the asset rather than in the config, changing the tilt on
+the asset does not create a new data source, whereas a config override does. Prefer the
+config overrides for what-if runs.
+
+### A more accurate alternative: `BlendedPVForecaster`
+
+`PVWattsForecaster` above depends on the `irradiance` sensor, which this plugin derives
+from WeatherAPI/OWM cloud cover. It might be more accurate to combine a global model with
+a local model to average them out, rather than rely on a single derived source.
+`BlendedPVForecaster` is a drop-in alternative that fetches two free, key-less providers
+live and averages their independent PVWatts power estimates. It currently only combines
+one fixed pair - Bright Sky's DWD forecast and Open-Meteo's `ecmwf_ifs025` model. The
+Open-Meteo side works everywhere; Bright Sky only works where DWD MOSMIX has coverage, so
+the blend as a whole is currently limited to those places - see
+[docs/pv-power-design.md](docs/pv-power-design.md) for how to check a given site first.
+PRs adding other providers/models for better coverage elsewhere are welcome. A different
+blend can be injected via the `providers` constructor argument (not available from the
+CLI, which always gets the default pair). It needs no irradiance
+sensor and no `get-weather-forecasts` step, just the same registered array specs:
+
+`flexmeasures add forecasts --sensor 42 --forecaster BlendedPVForecaster`
+
+It exists alongside `PVWattsForecaster`, not instead of it - both remain selectable
+`--forecaster` options, and existing pipelines built on the `irradiance` sensor keep
+working unchanged.
+
 An alternative usage is to save raw results in JSON files (for later processing), like this:
 
 `flexmeasures weather get-weather-forecasts --location 30,40 --store-as-json-files --region somewhere`
