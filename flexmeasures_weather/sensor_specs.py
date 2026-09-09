@@ -1,6 +1,5 @@
 from datetime import timedelta
 
-
 """
 This maps sensor specs which we can use in FlexMeasures to Weather labels.
 Note: Sensor names we use in FM need to be unique per weather station.

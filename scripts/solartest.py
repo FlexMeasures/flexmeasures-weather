@@ -5,6 +5,7 @@ Quick script to compare clear-sky irradiance computations
 from three different libraries.
 Among other considerations, this helped us to settle on pvlib.
 """
+
 from typing import List, Dict
 from datetime import datetime, timedelta
 
@@ -18,7 +19,6 @@ from pandas import DatetimeIndex
 from tzwhere import tzwhere
 from astral import LocationInfo
 from astral.sun import sun
-
 
 DAY = datetime(2021, 2, 10, tzinfo=pytz.utc)
 tzwhere = tzwhere.tzwhere()
