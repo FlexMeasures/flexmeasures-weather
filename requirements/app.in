@@ -1,5 +1,0 @@
-flexmeasures>=1.0,<2
-# pvlib needs h5py for clear-sky Linke turbidity lookups, which it declares itself.
-# netCDF4 and siphon used to be needed for pvlib.forecast (removed in pvlib 0.11), and
-# tables for the Linke turbidity file (pvlib reads it with h5py now) - all three are gone.
-pvlib
