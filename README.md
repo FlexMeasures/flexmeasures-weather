@@ -43,7 +43,9 @@ so you can make a call every 15 minutes for up to 10 locations or every hour for
 To add as plugin to an existing FlexMeasures system, add "/path/to/flexmeasures-weather-repo/flexmeasures_weather" to your FlexMeasures config file,
 using the FLEXMEASURES_PLUGINS setting (a list).
 
-Alternatively, if you installed this plugin as a package (e.g. via `python setup.py install`, `pip install -e` or `pip install flexmeasures_weather` after this project is on Pypi), then "flexmeasures_weather" suffices.
+Alternatively, if you installed this plugin as a package (e.g. via `uv sync` in this repo, `uv pip install -e .` or `pip install flexmeasures_weather` after this project is on Pypi), then "flexmeasures_weather" suffices.
+
+Note that `uv sync` already installs this project itself in editable mode, so a separate `uv pip install -e .` is only needed if you are installing into an environment you manage yourself.
 
 To enable weather forecast functionality, two PostgreSQL extensions must be installed. Run the following SQL commands in your database:
 
@@ -126,17 +128,45 @@ To expand the plugin's coverage to additional weather API services:
 
 ## Development
 
-We use pre-commit to keep code quality up.
+We manage dependencies with [uv](https://docs.astral.sh/uv/). The `uv.lock` file is committed, so
+everyone resolves to the same versions. This project pins the uv version it expects
+(`0.12.7`, see `[tool.uv].required-version` in `pyproject.toml`) - other uv versions will refuse
+to run rather than silently rewrite the lock file.
 
-Install necessary tools with:
+Set up a development environment and install the pre-commit hooks with:
 
-    pip install pre-commit
-    pre-commit install
+    uv sync
+    uv run pre-commit install
 
-or:
+Try the hooks out:
 
-    make install-for-dev
+    uv run pre-commit run --all-files --show-diff-on-failure
 
-Try it:
+The hooks (flake8, black, mypy) all run through `uv run`, so their versions come from `uv.lock`
+rather than from the pre-commit config.
 
-    pre-commit run --all-files --show-diff-on-failure
+Common tasks are defined as [poethepoet](https://poethepoet.natn.io/) tasks:
+
+    uv run poe test         # run the test suite (needs a test database, see below)
+    uv run poe type-check   # run mypy over flexmeasures_weather
+
+### Running the tests
+
+The test suite needs a PostgreSQL database with the `cube` and `earthdistance` extensions
+loaded. Start a throwaway one in Docker (port 5544) and remove it again with:
+
+    uv run poe test-db-start
+    uv run poe test
+    uv run poe test-db-stop
+
+**Careful if you bring your own database.** FlexMeasures' `testing` config defaults to
+port 5432 - often your *development* database. Our fixtures create/drop schema, which
+would destroy that data. `poe test-db-start` avoids this by binding to port **5544**
+instead, and `poe test` points `SQLALCHEMY_TEST_DATABASE_URI` there by default.
+
+To use a different test database, set `SQLALCHEMY_TEST_DATABASE_URI` yourself (this is
+the variable FlexMeasures reads in `testing`, *not* `SQLALCHEMY_DATABASE_URI`):
+
+    SQLALCHEMY_TEST_DATABASE_URI=postgresql://user:pass@host:port/dbname uv run poe test
+
+Running `pytest` directly skips that default - set the variable explicitly then too.

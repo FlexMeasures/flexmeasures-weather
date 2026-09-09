@@ -4,7 +4,6 @@ from flexmeasures import Sensor
 from ..commands import add_weather_sensor
 from .utils import cli_params_from_dict
 
-
 """
 Useful resource: https://flask.palletsprojects.com/en/2.0.x/testing/#testing-cli-commands
 """

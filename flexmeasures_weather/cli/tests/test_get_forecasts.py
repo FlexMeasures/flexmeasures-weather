@@ -7,7 +7,6 @@ from ..commands import collect_weather_data
 from ...utils import weather
 from .utils import mock_api_response
 
-
 """
 Useful resource: https://flask.palletsprojects.com/en/2.0.x/testing/#testing-cli-commands
 """

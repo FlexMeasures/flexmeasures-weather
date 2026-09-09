@@ -1,19 +1,47 @@
 name: lint-and-test
 
-on: push
-
+on:
+  push:
+  pull_request:
+    types:
+      - opened
+      - synchronize
 
 jobs:
+  lock-check:
+    name: "uv.lock is up to date"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          version: "0.12.7"
+      - name: Check that uv.lock matches pyproject.toml
+        run: uv lock --check
+
   check:
     runs-on: ubuntu-latest
-    name: Check (on Python 3.11)
+    name: Check (on Python 3.12)
     steps:
-      - uses: actions/setup-python@v4
+      - uses: actions/checkout@v6
+      - name: "Set up Python"
+        uses: actions/setup-python@v6
         with:
-          python-version: 3.11
-      - uses: actions/checkout@v3
-      - uses: pre-commit/action@v3.0.0
-
+          python-version-file: ".python-version"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: '.pre-commit-config.yaml'
+          version: "0.12.7"
+      - name: Install dev dependencies
+        run: uv sync --only-group dev --frozen
+      # Not tox-dev/action-pre-commit-uv: it would put an unpinned uv ahead of ours on PATH,
+      # tripping [tool.uv].required-version. Our hooks are all `language: system` anyway.
+      - name: Run pre-commit hooks
+        run: uv run --no-sync pre-commit run --all-files --show-diff-on-failure --color=always
 
   test:
     needs: check
@@ -21,35 +49,49 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        py_version: [ '3.11' ]
+        py_version: [ "3.10", "3.11", "3.12" ]
     name: "Test (on Python ${{ matrix.py_version }})"
     steps:
-      - uses: actions/setup-python@v2
+      - name: Check out src from Git
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.py_version }}
-      - name: Check out src from Git
-        uses: actions/checkout@v3
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.py_version }}
+          version: "0.12.7"
+
       - name: Install SQL extensions
         run: |
           sudo apt-get update
           sudo apt-get -y install postgresql-client
           psql -h $PGHOST -p $PGPORT --file scripts/load-psql-extensions.sql -U $PGUSER $PGDB;
-      - name: Install necessary items for netcdf
-        run: |
-          sudo apt-get install libhdf5-serial-dev netcdf-bin libnetcdf-dev
-      - run: make test
+
+      - name: Install flexmeasures-weather & dependencies
+        run: uv sync --locked
+
+      - name: Run all tests
+        run: uv run poe test
     env:
       PGHOST: 127.0.0.1
       PGPORT: 5432
       PGUSER: flexmeasures_test
       PGDB: flexmeasures_test
       PGPASSWORD: flexmeasures_test
+      # Overrides the local default in [tool.poe.tasks.test]: here the service container is on 5432.
+      SQLALCHEMY_TEST_DATABASE_URI: postgresql://flexmeasures_test:flexmeasures_test@127.0.0.1:5432/flexmeasures_test
 
     services:
       # Label used to access the service container
       postgres:
         # Docker Hub image
-        image: postgres:14.17 
+        image: postgres:17.4
         env:
           POSTGRES_USER: flexmeasures_test
           POSTGRES_PASSWORD: flexmeasures_test
@@ -57,4 +99,8 @@ jobs:
         ports:
           - 5432:5432
         # needed because the postgres container does not provide a healthcheck
-        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+        options: >-
+          --health-cmd "pg_isready -U flexmeasures_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
