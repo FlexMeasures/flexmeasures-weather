@@ -66,3 +66,21 @@ flexmeasures_weather_bp: Blueprint = Blueprint(
 flexmeasures_weather_bp.cli.help = "flexmeasures-weather CLI commands"
 ensure_bp_routes_are_loaded_fresh("cli.commands")
 from flexmeasures_weather.cli import commands  # noqa: E402,F401
+
+try:
+    from flexmeasures.data.automations import AutomationHandler  # noqa: E402
+except ImportError:
+    # Keep the CLI available with FlexMeasures versions without plugin automations.
+    pass
+else:
+    from .automation import WeatherForecastImporter  # noqa: E402
+
+    __automation_types__ = [
+        AutomationHandler(
+            type_id="weather-forecasts",
+            display_name="Weather forecasts",
+            generator_class=WeatherForecastImporter,
+            queue="ingestion",
+            result_noun="weather import",
+        )
+    ]

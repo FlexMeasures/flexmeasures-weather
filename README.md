@@ -18,6 +18,30 @@ To collect weather forecasts:
 
 This saves forecasts for your registered sensors in the database.
 
+With a FlexMeasures version that supports plugin automations, the same import can run
+as a recurring task. Register the weather sensors on a weather-station asset, put its ID
+in a YAML file such as `weather-automation.yml`:
+
+```yaml
+weather-station: 123
+```
+
+Then create an hourly automation:
+
+```bash
+flexmeasures add automation \
+    --asset 123 \
+    --name "Hourly weather forecasts" \
+    --cron "5 * * * *" \
+    --timezone Europe/Amsterdam \
+    --type weather-forecasts \
+    --config weather-automation.yml
+```
+
+Weather imports run on the `ingestion` queue. The automation runner and an ingestion
+worker must both load this plugin. The provider and API key remain server settings and
+are not stored in the automation.
+
 Use the `--help`` option for more options, e.g. for specifying two locations and requesting that a number of weather stations cover the bounding box between them (where the locations represent top left and bottom right).
 
 Notes about weather sensor setup: 
