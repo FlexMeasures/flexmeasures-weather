@@ -2,11 +2,11 @@ import logging
 
 import pytest
 from flexmeasures.data.models.time_series import TimedBelief
+from flexmeasures.data.models.generic_assets import GenericAssetType
 
 from ..commands import collect_weather_data
 from ...utils import weather
 from .utils import mock_api_response
-
 
 """
 Useful resource: https://flask.palletsprojects.com/en/2.0.x/testing/#testing-cli-commands
@@ -24,7 +24,7 @@ def test_get_weather_forecasts_to_db(
     wind_sensor_id = wind_sensor.id
     weather_station = wind_sensor.generic_asset
     messages = [
-        f"Using sensor {sensor.name} (ID {sensor.id}) at weather station "
+        f"Using sensor {sensor.name} (ID {sensor.id}) on asset "
         f"{weather_station.name} (ID {weather_station.id}, "
         f"location {weather_station.latitude}, {weather_station.longitude})."
         for sensor in add_weather_sensors_fresh_db.values()
@@ -85,6 +85,32 @@ def test_get_weather_forecasts_wapi_mapping(
     assert len(beliefs) == 2
     expected_values = [pytest.approx(100 / 3.6), pytest.approx(90 / 3.6)]
     assert [belief.event_value for belief in beliefs] == expected_values
+
+
+def test_get_weather_forecasts_on_non_station_asset(
+    app, fresh_db, monkeypatch, run_as_cli, add_weather_sensors_fresh_db
+):
+    sensor = add_weather_sensors_fresh_db["temperature"]
+    asset = sensor.generic_asset
+    fresh_db.session.flush()
+    asset.generic_asset_type = GenericAssetType(name="site")
+    fresh_db.session.flush()
+    sensor_id = sensor.id
+    asset_id = asset.id
+    assert asset_id != asset.generic_asset_type_id
+    monkeypatch.setitem(app.config, "WEATHERAPI_KEY", "dummy")
+    monkeypatch.setitem(app.config, "WEATHER_PROVIDER", "OWM")
+    monkeypatch.setattr(weather, "call_api", mock_api_response)
+
+    result = app.test_cli_runner().invoke(
+        collect_weather_data, ["--asset-id", str(asset_id)]
+    )
+
+    assert "Reported task get-weather-forecasts status as True" in result.output
+    assert "on asset Test weather station" in result.output
+    assert (
+        fresh_db.session.query(TimedBelief).filter_by(sensor_id=sensor_id).count() == 2
+    )
 
 
 def test_get_weather_forecasts_no_close_sensors(

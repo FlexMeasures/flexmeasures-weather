@@ -1,5 +1,6 @@
 import pytest
 from flexmeasures import Sensor
+from flexmeasures.data.models.generic_assets import GenericAssetType
 
 from ..commands import add_weather_sensor
 from .utils import cli_params_from_dict
@@ -46,3 +47,19 @@ def test_register_weather_sensor_twice(app, fresh_db):
     assert "Successfully created weather sensor with ID" in result.output
     result = runner.invoke(add_weather_sensor, cli_params_from_dict(sensor_params))
     assert "already exists" in result.output
+
+
+def test_register_weather_sensor_by_asset_id(
+    app, fresh_db, add_weather_sensors_fresh_db
+):
+    asset = add_weather_sensors_fresh_db["wind"].generic_asset
+    fresh_db.session.flush()
+    asset.generic_asset_type = GenericAssetType(name="site")
+    fresh_db.session.flush()
+    asset_id = asset.id
+    assert asset_id != asset.generic_asset_type_id
+    result = app.test_cli_runner().invoke(
+        add_weather_sensor, ["--name", "cloud cover", "--asset-id", str(asset_id)]
+    )
+    assert "Successfully created weather sensor" in result.output
+    assert Sensor.query.filter_by(name="cloud cover").one().generic_asset_id == asset_id

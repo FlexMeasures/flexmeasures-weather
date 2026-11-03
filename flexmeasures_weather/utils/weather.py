@@ -221,11 +221,11 @@ def save_forecasts_in_db(  # noqa: C901
                     max_degree_difference_for_nearest_weather_sensor,
                 )
                 if sensor is not None:
-                    station = sensor.generic_asset
+                    asset = sensor.generic_asset
                     click.echo(
                         f"[FLEXMEASURES-WEATHER] Using sensor {sensor.name} (ID {sensor.id}) "
-                        f"at weather station {station.name} (ID {station.id}, "
-                        f"location {station.latitude}, {station.longitude})."
+                        f"on asset {asset.name} (ID {asset.id}, "
+                        f"location {asset.latitude}, {asset.longitude})."
                     )
 
         # loop through forecasts, including the one of current hour (horizon 0)

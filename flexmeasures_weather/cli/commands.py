@@ -43,7 +43,7 @@ supported_sensors_list = ", ".join(
     "--asset-id",
     required=False,
     type=int,
-    help="The asset id of the weather station (you can also give its location).",
+    help="The ID of the asset for the sensor (you can also give its location).",
 )
 @click.option(
     "--latitude",
@@ -125,7 +125,7 @@ def add_weather_sensor(**args):
     "--asset-id",
     type=int,
     required=False,
-    help="ID of a weather station asset - forecasts will be gotten for its location. If present, --location will be ignored.",
+    help="ID of an asset - forecasts will be gotten for its location. If present, --location will be ignored.",
 )
 @click.option(
     "--store-in-db/--store-as-json-files",

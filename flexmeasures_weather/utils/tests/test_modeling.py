@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import pytest
 
 from flexmeasures import Asset
+from flexmeasures.data.models.generic_assets import GenericAssetType
 
 import flexmeasures_weather.utils.modeling as modeling
 from flexmeasures_weather import DEFAULT_DATA_SOURCE_NAME, DEFAULT_WEATHER_STATION_NAME
@@ -13,6 +14,7 @@ from flexmeasures_weather.utils.modeling import (
     get_or_create_owm_data_source_for_derived_data,
     get_or_create_weather_account,
     get_or_create_weather_station,
+    get_weather_station_by_asset_id,
 )
 
 
@@ -20,6 +22,18 @@ def test_creating_two_weather_stations(fresh_db):
     get_or_create_weather_station(50, 40)
     get_or_create_weather_station(40, 50)
     assert Asset.query.filter(Asset.name == DEFAULT_WEATHER_STATION_NAME).count() == 2
+
+
+def test_get_asset_by_id_requires_existing_location(fresh_db):
+    asset = Asset(
+        name="Site without location", generic_asset_type=GenericAssetType(name="site")
+    )
+    fresh_db.session.add(asset)
+    fresh_db.session.flush()
+    with pytest.raises(Exception, match="missing location information"):
+        get_weather_station_by_asset_id(asset.id)
+    with pytest.raises(Exception, match="No asset found"):
+        get_weather_station_by_asset_id(asset.id + 10000)
 
 
 # The version-branch tests below still use monkeypatching to isolate source
