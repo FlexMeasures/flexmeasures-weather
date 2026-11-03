@@ -78,7 +78,7 @@ def get_locations(
 
 def find_weather_sensor_by_location(
     location: Tuple[float, float],
-    max_degree_difference_for_nearest_weather_sensor: int,
+    max_degree_difference_for_nearest_weather_sensor: float,
     sensor_name: str,
 ) -> Sensor | None:
     """
@@ -99,10 +99,10 @@ def find_weather_sensor_by_location(
         )
         return None
     weather_station: GenericAsset = weather_sensor.generic_asset
-    if abs(
-        location[0] - weather_station.location[0]
-    ) > max_degree_difference_for_nearest_weather_sensor or abs(
-        location[1] - weather_station.location[1]
+    if (
+        abs(location[0] - weather_station.location[0])
+        > max_degree_difference_for_nearest_weather_sensor
+        or abs(location[1] - weather_station.location[1])
         > max_degree_difference_for_nearest_weather_sensor
     ):
         current_app.logger.warning(
