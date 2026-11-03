@@ -23,6 +23,12 @@ def test_get_weather_forecasts_to_db(
     fresh_db.session.flush()
     wind_sensor_id = wind_sensor.id
     weather_station = wind_sensor.generic_asset
+    messages = [
+        f"Using sensor {sensor.name} (ID {sensor.id}) at weather station "
+        f"{weather_station.name} (ID {weather_station.id}, "
+        f"location {weather_station.latitude}, {weather_station.longitude})."
+        for sensor in add_weather_sensors_fresh_db.values()
+    ]
 
     monkeypatch.setitem(app.config, "WEATHERAPI_KEY", "dummy")
     monkeypatch.setitem(app.config, "WEATHER_PROVIDER", "OWM")
@@ -35,6 +41,9 @@ def test_get_weather_forecasts_to_db(
     )
     print(result.output)
     assert "Reported task get-weather-forecasts status as True" in result.output
+    for message in messages:
+        assert result.output.count(message) == 1
+        assert result.output.index(message) < result.output.index("Processing forecast")
 
     beliefs = (
         fresh_db.session.query(TimedBelief)

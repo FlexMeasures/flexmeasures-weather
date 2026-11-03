@@ -35,6 +35,7 @@ def test_register_weather_sensor(app, fresh_db):
     runner = app.test_cli_runner()
     result = runner.invoke(add_weather_sensor, cli_params_from_dict(sensor_params))
     assert "Successfully created weather sensor with ID" in result.output
+    assert "entity address" not in result.output
     sensor = Sensor.query.filter(Sensor.name == sensor_params["name"]).one_or_none()
     assert sensor is not None
 

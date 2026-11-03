@@ -108,9 +108,6 @@ def add_weather_sensor(**args):
     click.echo(
         f"[FLEXMEASURES-WEATHER] Successfully created weather sensor with ID {sensor.id}, at weather station with ID {weather_station.id}"
     )
-    click.echo(
-        f"[FLEXMEASURES-WEATHER] You can access this sensor at its entity address {sensor.entity_address}"
-    )
 
 
 @flexmeasures_weather_bp.cli.command("get-weather-forecasts")

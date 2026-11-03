@@ -18,6 +18,11 @@ To collect weather forecasts:
 
 This saves forecasts for your registered sensors in the database.
 
+For each location and weather quantity, the command uses the nearest registered
+weather sensor within `WEATHER_MAXIMAL_DEGREE_LOCATION_DISTANCE` degrees in both
+latitude and longitude (default: 0.3). It reports the selected sensor and weather
+station before processing forecasts. Different quantities may use different stations.
+
 Use the `--help`` option for more options, e.g. for specifying two locations and requesting that a number of weather stations cover the bounding box between them (where the locations represent top left and bottom right).
 
 Notes about weather sensor setup: 

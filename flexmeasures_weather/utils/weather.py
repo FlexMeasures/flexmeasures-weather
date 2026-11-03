@@ -211,6 +211,23 @@ def save_forecasts_in_db(  # noqa: C901
             f"[FLEXMEASURES-WEATHER] Called weather provider {provider} API successfully at {now}."
         )
 
+        for sensor_specs in mapping:
+            label = sensor_specs[f"{provider}_sensor_name"]
+            if any(label in fc for fc in forecasts):
+                sensor = get_weather_sensor(
+                    sensor_specs,
+                    location,
+                    weather_sensors,
+                    max_degree_difference_for_nearest_weather_sensor,
+                )
+                if sensor is not None:
+                    station = sensor.generic_asset
+                    click.echo(
+                        f"[FLEXMEASURES-WEATHER] Using sensor {sensor.name} (ID {sensor.id}) "
+                        f"at weather station {station.name} (ID {station.id}, "
+                        f"location {station.latitude}, {station.longitude})."
+                    )
+
         # loop through forecasts, including the one of current hour (horizon 0)
         for fc in forecasts:
             time_key = fc["dt"] if provider == "OWM" else fc["time_epoch"]
@@ -232,9 +249,6 @@ def save_forecasts_in_db(  # noqa: C901
                         max_degree_difference_for_nearest_weather_sensor,
                     )
                     if weather_sensor is not None:
-                        click.echo(
-                            f"Found pre-configured weather sensor {weather_sensor.name} ..."
-                        )
                         if weather_sensor not in db_forecasts.keys():
                             db_forecasts[weather_sensor] = []
 
@@ -296,7 +310,7 @@ def get_weather_sensor(
     sensor_specs: dict,
     location: Tuple[float, float],
     weather_sensors: Dict[str, Sensor],
-    max_degree_difference_for_nearest_weather_sensor: int,
+    max_degree_difference_for_nearest_weather_sensor: float,
 ) -> Sensor | None:
     """Get the weather sensor for this own response label and location, if we haven't retrieved it already."""
     sensor_name = str(sensor_specs["fm_sensor_name"])
