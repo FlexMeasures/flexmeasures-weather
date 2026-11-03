@@ -19,9 +19,25 @@ from flexmeasures_weather.utils.modeling import (
 
 
 def test_creating_two_weather_stations(fresh_db):
-    get_or_create_weather_station(50, 40)
-    get_or_create_weather_station(40, 50)
-    assert Asset.query.filter(Asset.name == DEFAULT_WEATHER_STATION_NAME).count() == 2
+    first = get_or_create_weather_station(50, 40)
+    second = get_or_create_weather_station(40, 50)
+    fresh_db.session.flush()
+    assert first.name == DEFAULT_WEATHER_STATION_NAME
+    assert second.name == f"{DEFAULT_WEATHER_STATION_NAME}-1"
+    assert get_or_create_weather_station(50, 40) == first
+
+
+def test_station_name_skips_existing_public_assets(app, fresh_db, monkeypatch):
+    monkeypatch.setitem(app.config, "WEATHER_STATION_NAME", "x" * 80)
+    existing = Asset(
+        name="x" * 78 + "-1", generic_asset_type=GenericAssetType(name="site")
+    )
+    fresh_db.session.add(existing)
+    first = get_or_create_weather_station(50, 40)
+    second = get_or_create_weather_station(40, 50)
+    fresh_db.session.flush()
+    assert first.name == "x" * 80
+    assert second.name == "x" * 78 + "-2"
 
 
 def test_get_asset_by_id_requires_existing_location(fresh_db):
