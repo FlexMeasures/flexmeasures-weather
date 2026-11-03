@@ -29,7 +29,7 @@ DEFAULT_FILE_PATH_LOCATION = "weather-forecasts"
 DEFAULT_DATA_SOURCE_NAME = "Weather"
 DEFAULT_WEATHER_STATION_NAME = "weather station (created by FM-Weather)"
 WEATHER_STATION_TYPE_NAME = "weather station"
-DEFAULT_MAXIMAL_DEGREE_LOCATION_DISTANCE = 1
+DEFAULT_MAXIMAL_DEGREE_LOCATION_DISTANCE = 0.3
 
 __version__ = "0.1"
 __settings__ = {

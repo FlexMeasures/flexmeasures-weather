@@ -4,7 +4,7 @@ from datetime import timedelta
 import pytest
 from flask_sqlalchemy import SQLAlchemy
 from flexmeasures.app import create as create_flexmeasures_app
-from flexmeasures.conftest import db, fresh_db  # noqa: F401
+from flexmeasures.conftest import db, fresh_db, run_as_cli  # noqa: F401
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 from flexmeasures.data.models.time_series import Sensor
 
