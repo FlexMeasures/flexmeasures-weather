@@ -18,8 +18,7 @@ To collect weather forecasts:
 
 This saves forecasts for your registered sensors in the database.
 
-With a FlexMeasures version that supports plugin automations, the same import can run
-as a recurring task. Register the weather sensors on a weather-station asset, put its ID
+The same import can run as a recurring task. Register the weather sensors on a weather-station asset, put its ID
 in a YAML file such as `weather-automation.yml`:
 
 ```yaml
