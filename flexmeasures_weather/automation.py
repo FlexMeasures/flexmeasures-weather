@@ -6,6 +6,7 @@ from marshmallow import Schema
 from flexmeasures.data.models.data_sources import DataGenerator
 from flexmeasures.data.schemas.generic_assets import GenericAssetIdField
 
+from . import DEFAULT_DATA_SOURCE_NAME
 from .sensor_specs import mapping
 from .utils.weather import collect_weather_forecasts
 
@@ -25,6 +26,19 @@ class WeatherForecastImporter(DataGenerator):
     __version__ = "0.1"
     _config_schema = WeatherForecastConfigSchema()
     _parameters_schema = WeatherForecastParametersSchema()
+
+    @classmethod
+    def get_data_source_info(cls) -> dict:
+        """Name the automation's source after the weather provider, as the CLI names its source.
+
+        Without this, the source is named after FLEXMEASURES_DEFAULT_DATASOURCE ("FlexMeasures" by default),
+        so moving a weather station from the CLI to the automation would change the name of the source its forecasts are recorded under.
+        """
+        source_info = super().get_data_source_info()
+        source_info["source"] = current_app.config.get(
+            "WEATHER_DATA_SOURCE_NAME", DEFAULT_DATA_SOURCE_NAME
+        )
+        return source_info
 
     @property
     def output_sensors(self) -> list:
