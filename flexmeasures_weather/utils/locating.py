@@ -8,9 +8,12 @@ from flask import current_app
 from flexmeasures.utils.grid_cells import LatLngGrid, get_cell_nums
 from flexmeasures import Sensor
 from flexmeasures.data.models.generic_assets import GenericAsset
+from flexmeasures.data.queries.sensors import query_sensors_by_proximity
+from flexmeasures.data import db
 from flexmeasures.utils import flexmeasures_inflection
 
 from .. import WEATHER_STATION_TYPE_NAME
+from .modeling import get_weather_station_by_asset_id
 
 
 def get_locations(
@@ -78,13 +81,34 @@ def get_locations(
 
 def find_weather_sensor_by_location(
     location: Tuple[float, float],
-    max_degree_difference_for_nearest_weather_sensor: int,
+    max_degree_difference_for_nearest_weather_sensor: float,
     sensor_name: str,
 ) -> Sensor | None:
     """
-    Try to find a weather sensor of fitting type close by.
-    Return None if the nearest weather sensor is further away than some minimum degrees or if no sensor was found at all.
+    Find a matching sensor at the exact location, or on a nearby weather station.
     """
+    exact_query = query_sensors_by_proximity(
+        latitude=location[0],
+        longitude=location[1],
+        generic_asset_type_name=None,
+        sensor_name=sensor_name,
+    ).filter(
+        GenericAsset.latitude == location[0],
+        GenericAsset.longitude == location[1],
+    )
+    exact_sensors = db.session.scalars(
+        exact_query.order_by(None).order_by(Sensor.id).limit(2)
+    ).all()
+    if len(exact_sensors) > 1:
+        current_app.logger.warning(
+            f"[FLEXMEASURES-WEATHER] Multiple '{sensor_name}' sensors found at {location}; "
+            f"using sensor ID {exact_sensors[0].id} on asset "
+            f"{exact_sensors[0].generic_asset.name} "
+            f"(ID {exact_sensors[0].generic_asset.id})."
+        )
+    if exact_sensors:
+        return exact_sensors[0]
+
     weather_sensor: Optional[Sensor] = Sensor.find_closest(
         generic_asset_type_name=WEATHER_STATION_TYPE_NAME,
         sensor_name=sensor_name,
@@ -99,10 +123,10 @@ def find_weather_sensor_by_location(
         )
         return None
     weather_station: GenericAsset = weather_sensor.generic_asset
-    if abs(
-        location[0] - weather_station.location[0]
-    ) > max_degree_difference_for_nearest_weather_sensor or abs(
-        location[1] - weather_station.location[1]
+    if (
+        abs(location[0] - weather_station.location[0])
+        > max_degree_difference_for_nearest_weather_sensor
+        or abs(location[1] - weather_station.location[1])
         > max_degree_difference_for_nearest_weather_sensor
     ):
         current_app.logger.warning(
@@ -114,14 +138,5 @@ def find_weather_sensor_by_location(
 
 def get_location_by_asset_id(asset_id: int) -> Tuple[float, float]:
     """Get location for forecasting by passing an asset id"""
-    asset = GenericAsset.query.filter(GenericAsset.id == asset_id).one_or_none()
-    if asset.generic_asset_type.name != WEATHER_STATION_TYPE_NAME:
-        raise Exception(
-            f"Asset {asset} does not seem to be a weather station we should use ― we expect an asset with type '{WEATHER_STATION_TYPE_NAME}'."
-        )
-    if asset is None:
-        raise Exception(
-            "[FLEXMEASURES-WEATHER] No asset found for the given asset id %s."
-            % asset_id
-        )
+    asset = get_weather_station_by_asset_id(asset_id)
     return (asset.latitude, asset.longitude)

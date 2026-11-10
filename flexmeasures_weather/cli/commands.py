@@ -43,7 +43,7 @@ supported_sensors_list = ", ".join(
     "--asset-id",
     required=False,
     type=int,
-    help="The asset id of the weather station (you can also give its location).",
+    help="The ID of the asset for the sensor (you can also give its location).",
 )
 @click.option(
     "--latitude",
@@ -91,7 +91,7 @@ def add_weather_sensor(**args):
     ).one_or_none()
     if sensor:
         click.echo(
-            f"[FLEXMEASURES-WEATHER] A '{args['name']}' weather sensor already exists at this weather station (the station's ID is {weather_station.id})."
+            f"[FLEXMEASURES-WEATHER] A '{args['name']}' weather sensor already exists on asset {weather_station.name} (ID {weather_station.id})."
         )
         return
     fm_sensor_specs = get_supported_sensor_spec(args["name"])
@@ -106,10 +106,7 @@ def add_weather_sensor(**args):
     db.session.add(sensor)
     db.session.commit()
     click.echo(
-        f"[FLEXMEASURES-WEATHER] Successfully created weather sensor with ID {sensor.id}, at weather station with ID {weather_station.id}"
-    )
-    click.echo(
-        f"[FLEXMEASURES-WEATHER] You can access this sensor at its entity address {sensor.entity_address}"
+        f"[FLEXMEASURES-WEATHER] Successfully created weather sensor with ID {sensor.id}, on asset {weather_station.name} (ID {weather_station.id})"
     )
 
 
@@ -128,7 +125,7 @@ def add_weather_sensor(**args):
     "--asset-id",
     type=int,
     required=False,
-    help="ID of a weather station asset - forecasts will be gotten for its location. If present, --location will be ignored.",
+    help="ID of an asset - forecasts will be gotten for its location. If present, --location will be ignored.",
 )
 @click.option(
     "--store-in-db/--store-as-json-files",

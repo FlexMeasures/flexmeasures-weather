@@ -1,4 +1,5 @@
 from packaging import version
+import click
 
 from flask import current_app
 from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
@@ -9,7 +10,6 @@ from flexmeasures.data.services.data_sources import get_or_create_source
 from flexmeasures_weather import DEFAULT_DATA_SOURCE_NAME
 from flexmeasures_weather import WEATHER_STATION_TYPE_NAME
 from flexmeasures_weather import DEFAULT_WEATHER_STATION_NAME
-
 
 if version.parse(flexmeasures_version) < version.parse("0.13"):
     SOURCE_TYPE = "forecasting script"
@@ -92,11 +92,40 @@ def get_or_create_weather_station(latitude: float, longitude: float) -> GenericA
     station_name = current_app.config.get(
         "WEATHER_STATION_NAME", DEFAULT_WEATHER_STATION_NAME
     )
-    weather_station = GenericAsset.query.filter(
+    assets = GenericAsset.query.filter(
         GenericAsset.latitude == latitude, GenericAsset.longitude == longitude
-    ).one_or_none()
+    ).all()
+    weather_stations = [
+        asset
+        for asset in assets
+        if asset.generic_asset_type is not None
+        and asset.generic_asset_type.name == WEATHER_STATION_TYPE_NAME
+    ]
+    if len(assets) == 1:
+        weather_station = assets[0]
+    elif len(weather_stations) == 1:
+        weather_station = weather_stations[0]
+    elif assets:
+        choices = ", ".join(f"{asset.name} (ID {asset.id})" for asset in assets)
+        raise click.ClickException(
+            f"Multiple assets found at ({latitude}, {longitude}): {choices}. "
+            "Choose one with --asset-id."
+        )
+    else:
+        weather_station = None
     if weather_station is None:
         weather_station_type = get_or_create_weather_station_type()
+        base_name = station_name
+        suffix = 0
+        while (
+            GenericAsset.query.filter_by(
+                name=station_name, parent_asset_id=None, account_id=None
+            ).first()
+            is not None
+        ):
+            suffix += 1
+            suffix_text = f"-{suffix}"
+            station_name = f"{base_name[:80 - len(suffix_text)]}{suffix_text}"
         weather_station = GenericAsset(
             name=station_name,
             generic_asset_type=weather_station_type,
@@ -109,16 +138,16 @@ def get_or_create_weather_station(latitude: float, longitude: float) -> GenericA
 
 def get_weather_station_by_asset_id(asset_id: int) -> GenericAsset:
     weather_station = GenericAsset.query.filter(
-        GenericAsset.generic_asset_type_id == asset_id
+        GenericAsset.id == asset_id
     ).one_or_none()
     if weather_station is None:
         raise Exception(
-            f"[FLEXMEASURES-WEATHER] Weather station is not present for the given asset id '{asset_id}'."
+            f"[FLEXMEASURES-WEATHER] No asset found for the given asset id '{asset_id}'."
         )
 
     if weather_station.latitude is None or weather_station.longitude is None:
         raise Exception(
-            f"[FLEXMEASURES-WEATHER] Weather station {weather_station} is missing location information [Latitude, Longitude]."
+            f"[FLEXMEASURES-WEATHER] Asset {weather_station} is missing location information [Latitude, Longitude]."
         )
 
     return weather_station
