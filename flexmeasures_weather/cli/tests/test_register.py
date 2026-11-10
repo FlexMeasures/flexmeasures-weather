@@ -57,9 +57,11 @@ def test_register_weather_sensor_by_asset_id(
     asset.generic_asset_type = GenericAssetType(name="site")
     fresh_db.session.flush()
     asset_id = asset.id
+    asset_name = asset.name
     assert asset_id != asset.generic_asset_type_id
     result = app.test_cli_runner().invoke(
         add_weather_sensor, ["--name", "cloud cover", "--asset-id", str(asset_id)]
     )
     assert "Successfully created weather sensor" in result.output
+    assert f"on asset {asset_name} (ID {asset_id})" in result.output
     assert Sensor.query.filter_by(name="cloud cover").one().generic_asset_id == asset_id

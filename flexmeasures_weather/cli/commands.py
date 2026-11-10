@@ -91,7 +91,7 @@ def add_weather_sensor(**args):
     ).one_or_none()
     if sensor:
         click.echo(
-            f"[FLEXMEASURES-WEATHER] A '{args['name']}' weather sensor already exists at this weather station (the station's ID is {weather_station.id})."
+            f"[FLEXMEASURES-WEATHER] A '{args['name']}' weather sensor already exists on asset {weather_station.name} (ID {weather_station.id})."
         )
         return
     fm_sensor_specs = get_supported_sensor_spec(args["name"])
@@ -106,7 +106,7 @@ def add_weather_sensor(**args):
     db.session.add(sensor)
     db.session.commit()
     click.echo(
-        f"[FLEXMEASURES-WEATHER] Successfully created weather sensor with ID {sensor.id}, at weather station with ID {weather_station.id}"
+        f"[FLEXMEASURES-WEATHER] Successfully created weather sensor with ID {sensor.id}, on asset {weather_station.name} (ID {weather_station.id})"
     )
 
 
