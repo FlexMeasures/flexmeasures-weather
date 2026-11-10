@@ -96,11 +96,15 @@ def find_weather_sensor_by_location(
         GenericAsset.latitude == location[0],
         GenericAsset.longitude == location[1],
     )
-    exact_sensors = db.session.scalars(exact_query.limit(2)).all()
+    exact_sensors = db.session.scalars(
+        exact_query.order_by(None).order_by(Sensor.id).limit(2)
+    ).all()
     if len(exact_sensors) > 1:
-        raise ValueError(
+        current_app.logger.warning(
             f"[FLEXMEASURES-WEATHER] Multiple '{sensor_name}' sensors found at {location}; "
-            "cannot choose which sensor should receive forecasts."
+            f"using sensor ID {exact_sensors[0].id} on asset "
+            f"{exact_sensors[0].generic_asset.name} "
+            f"(ID {exact_sensors[0].generic_asset.id})."
         )
     if exact_sensors:
         return exact_sensors[0]

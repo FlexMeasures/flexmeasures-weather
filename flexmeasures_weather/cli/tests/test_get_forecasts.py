@@ -1,8 +1,9 @@
 import logging
+from datetime import timedelta
 
 import pytest
-from flexmeasures.data.models.time_series import TimedBelief
-from flexmeasures.data.models.generic_assets import GenericAssetType
+from flexmeasures.data.models.time_series import Sensor, TimedBelief
+from flexmeasures.data.models.generic_assets import GenericAsset, GenericAssetType
 
 from ..commands import collect_weather_data
 from ...utils import weather
@@ -85,6 +86,52 @@ def test_get_weather_forecasts_wapi_mapping(
     assert len(beliefs) == 2
     expected_values = [pytest.approx(100 / 3.6), pytest.approx(90 / 3.6)]
     assert [belief.event_value for belief in beliefs] == expected_values
+
+
+def test_ambiguous_temperature_does_not_block_wind_forecasts(
+    app, fresh_db, monkeypatch, run_as_cli, add_weather_sensors_fresh_db, caplog
+):
+    wind = add_weather_sensors_fresh_db["wind"]
+    station = wind.generic_asset
+    site = GenericAsset(
+        name="Site",
+        generic_asset_type=GenericAssetType(name="site"),
+        latitude=station.latitude,
+        longitude=station.longitude,
+    )
+    other_temperature = Sensor(
+        name="temperature",
+        generic_asset=site,
+        unit="°C",
+        event_resolution=timedelta(hours=1),
+    )
+    fresh_db.session.add(other_temperature)
+    fresh_db.session.flush()
+    wind_id = wind.id
+    temperature_id = add_weather_sensors_fresh_db["temperature"].id
+    other_temperature_id = other_temperature.id
+    location = f"{station.latitude},{station.longitude}"
+    monkeypatch.setitem(app.config, "WEATHERAPI_KEY", "dummy")
+    monkeypatch.setitem(app.config, "WEATHER_PROVIDER", "OWM")
+    monkeypatch.setattr(weather, "call_api", mock_api_response)
+    with caplog.at_level(logging.WARNING):
+        result = app.test_cli_runner().invoke(
+            collect_weather_data, ["--location", location]
+        )
+    assert "Reported task get-weather-forecasts status as True" in result.output
+    assert "Multiple 'temperature' sensors" in caplog.text
+    assert f"using sensor ID {temperature_id}" in caplog.text
+    assert fresh_db.session.query(TimedBelief).filter_by(sensor_id=wind_id).count() == 2
+    assert (
+        fresh_db.session.query(TimedBelief).filter_by(sensor_id=temperature_id).count()
+        == 2
+    )
+    assert (
+        fresh_db.session.query(TimedBelief)
+        .filter_by(sensor_id=other_temperature_id)
+        .count()
+        == 0
+    )
 
 
 def test_get_weather_forecasts_on_non_station_asset(

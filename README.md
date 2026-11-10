@@ -31,7 +31,7 @@ To collect forecasts for one location:
 flexmeasures weather get-weather-forecasts --location 30,40
 ```
 
-**Forecast collection** fetches a forecast once; schedule it to run repeatedly if you need updates. For each weather quantity present in the provider response, it first looks for a matching sensor on any asset at the exact coordinates. If multiple sensors match, it reports an error. If none matches exactly, it uses the nearest sensor on an asset of type `weather station`, within `WEATHER_MAXIMAL_DEGREE_LOCATION_DISTANCE` degrees in both latitude and longitude (default: 0.3). Different quantities may use different assets. If no suitable sensor exists, that quantity is skipped with a warning. The command does not create sensors or stations.
+**Forecast collection** fetches a forecast once; schedule it to run repeatedly if you need updates. For each weather quantity present in the provider response, it first looks for a matching sensor on any asset at the exact coordinates. If multiple sensors match, it warns and uses the one with the lowest sensor ID. If none matches exactly, it uses the nearest sensor on an asset of type `weather station`, within `WEATHER_MAXIMAL_DEGREE_LOCATION_DISTANCE` degrees in both latitude and longitude (default: 0.3). Different quantities may use different assets. If no suitable sensor exists, that quantity is skipped with a warning. The command does not create sensors or stations.
 
 You can also pass `--asset-id` to use an asset's coordinates. The command still selects sensors by location, so the ID does not restrict the selected sensors to that asset.
 

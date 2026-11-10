@@ -65,7 +65,7 @@ def test_exact_sensor_on_other_asset_takes_precedence(
 
 
 def test_multiple_exact_sensors_are_ambiguous(
-    fresh_db, add_weather_sensors_fresh_db, run_as_cli
+    fresh_db, add_weather_sensors_fresh_db, run_as_cli, caplog
 ):
     station = add_weather_sensors_fresh_db["temperature"].generic_asset
     asset = GenericAsset(
@@ -83,8 +83,13 @@ def test_multiple_exact_sensors_are_ambiguous(
         )
     )
     fresh_db.session.flush()
-    with pytest.raises(ValueError, match="Multiple 'temperature' sensors"):
+    expected = add_weather_sensors_fresh_db["temperature"]
+    assert (
         find_weather_sensor_by_location(station.location, 0.3, "temperature")
+        == expected
+    )
+    assert "Multiple 'temperature' sensors" in caplog.text
+    assert f"using sensor ID {expected.id}" in caplog.text
 
 
 def test_exact_sensor_lookup_requires_asset_access(
