@@ -15,7 +15,7 @@ flexmeasures weather register-weather-sensor --name "cloud cover" --latitude 30 
 
 Supported sensor names are `temperature` (°C), `wind speed` (m/s), `cloud cover` (%) and `irradiance` (W/m²). Irradiance is calculated from the location, time and forecast cloud cover. All four sensors have an hourly resolution. The optional `--timezone` for registration defaults to UTC.
 
-**Sensor registration** by coordinates looks for an asset at exactly those coordinates. It reuses that asset regardless of its type, or creates a public weather station if no asset is found. It does not search nearby locations. `WEATHER_STATION_NAME` controls the name used for new stations.
+**Sensor registration** by coordinates looks for an asset at exactly those coordinates. It reuses a single matching asset or, when several match, the weather station if there is exactly one. Otherwise it lists the matches and asks you to select one with `--asset-id`. If no asset is found, it creates a public weather station. It does not search nearby locations. `WEATHER_STATION_NAME` controls the name used for new stations.
 
 There is no separate weather-plugin command to create a station, but FlexMeasures provides general asset commands. If the `weather station` asset type does not exist yet, create it with `flexmeasures add asset-type --name "weather station"`. Then use its ID to create a public asset with a unique name:
 
