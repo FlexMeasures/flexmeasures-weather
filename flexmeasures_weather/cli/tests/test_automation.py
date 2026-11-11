@@ -37,6 +37,29 @@ def test_weather_automation_collects_declared_station_sensors(
     assert set(importer.output_sensors) == set(add_weather_sensors_fresh_db.values())
 
 
+def test_weather_automation_falls_back_to_the_openweathermap_key(
+    app, fresh_db, monkeypatch, add_weather_sensors_fresh_db
+):
+    """A config with only OPENWEATHERMAP_API_KEY, which the CLI accepts, also works for the automation."""
+    station = add_weather_sensors_fresh_db["wind"].generic_asset
+    fresh_db.session.flush()
+    monkeypatch.delitem(app.config, "WEATHERAPI_KEY", raising=False)
+    monkeypatch.setitem(app.config, "OPENWEATHERMAP_API_KEY", "owm-key")
+    monkeypatch.setitem(app.config, "WEATHER_PROVIDER", "OWM")
+    used_keys = []
+
+    def recording_call_api(api_key, location):
+        used_keys.append(api_key)
+        return mock_api_response(api_key, location)
+
+    monkeypatch.setattr(weather, "call_api", recording_call_api)
+
+    results = WeatherForecastImporter(config={"weather-station": station.id}).compute()
+
+    assert used_keys == ["owm-key"]
+    assert all(len(result["data"]) == 2 for result in results)
+
+
 def test_weather_automation_names_its_sources_like_the_cli(
     app, fresh_db, monkeypatch, add_weather_sensors_fresh_db
 ):

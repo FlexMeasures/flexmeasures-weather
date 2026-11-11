@@ -59,9 +59,16 @@ class WeatherForecastImporter(DataGenerator):
             raise ValueError(
                 f"Weather station {station.id} needs latitude and longitude."
             )
-        api_key = str(current_app.config.get("WEATHERAPI_KEY", ""))
+        # Like the CLI, fall back to the setting's older name, which existing OpenWeatherMap setups still use.
+        api_key = str(
+            current_app.config.get(
+                "WEATHERAPI_KEY", current_app.config.get("OPENWEATHERMAP_API_KEY", "")
+            )
+        )
         if not api_key:
-            raise ValueError("Setting WEATHERAPI_KEY is not available.")
+            raise ValueError(
+                "Setting WEATHERAPI_KEY (or OPENWEATHERMAP_API_KEY) is not available."
+            )
         sensors = {sensor.name: sensor for sensor in self.output_sensors}
         forecasts = collect_weather_forecasts(
             api_key,
