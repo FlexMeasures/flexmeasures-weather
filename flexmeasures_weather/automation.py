@@ -77,6 +77,16 @@ class WeatherForecastImporter(DataGenerator):
             data_source=self.data_source,
             derived_data_source=self.data_source,
         )
+        # FlexMeasures counts a run that returns nothing as succeeded, so fail it here rather than let the station's forecasts go stale unnoticed.
+        missing = [
+            sensor
+            for sensor in sensors.values()
+            if sensor not in forecasts or forecasts[sensor].empty
+        ]
+        if missing:
+            raise ValueError(
+                f"The weather provider returned no forecasts for {', '.join(f'{sensor.name} (sensor {sensor.id})' for sensor in missing)} on weather station {station.id}."
+            )
         return [
             {"sensor": sensor, "data": beliefs} for sensor, beliefs in forecasts.items()
         ]

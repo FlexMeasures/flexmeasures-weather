@@ -1,5 +1,7 @@
 from datetime import timedelta
 
+import pytest
+
 from flexmeasures.data.models.time_series import Sensor
 
 from flexmeasures_weather import __automation_types__
@@ -58,6 +60,51 @@ def test_weather_automation_falls_back_to_the_openweathermap_key(
 
     assert used_keys == ["owm-key"]
     assert all(len(result["data"]) == 2 for result in results)
+
+
+def test_weather_automation_fails_without_forecasts(
+    app, fresh_db, monkeypatch, add_weather_sensors_fresh_db
+):
+    """A provider response without forecasts fails the run, instead of passing as a run that recorded nothing."""
+    station = add_weather_sensors_fresh_db["wind"].generic_asset
+    fresh_db.session.flush()
+    monkeypatch.setitem(app.config, "WEATHERAPI_KEY", "dummy")
+    monkeypatch.setitem(app.config, "WEATHER_PROVIDER", "OWM")
+
+    def empty_response(api_key, location):
+        time_of_call, _ = mock_api_response(api_key, location)
+        return time_of_call, []
+
+    monkeypatch.setattr(weather, "call_api", empty_response)
+
+    importer = WeatherForecastImporter(config={"weather-station": station.id})
+    with pytest.raises(ValueError, match="returned no forecasts for"):
+        importer.compute()
+
+
+def test_weather_automation_names_the_sensors_without_forecasts(
+    app, fresh_db, monkeypatch, add_weather_sensors_fresh_db
+):
+    """A station sensor the provider sent nothing for fails the run, naming that sensor."""
+    station = add_weather_sensors_fresh_db["wind"].generic_asset
+    cloud_cover = Sensor(
+        name="cloud cover",
+        generic_asset=station,
+        event_resolution=timedelta(minutes=60),
+        unit="%",
+    )
+    fresh_db.session.add(cloud_cover)
+    fresh_db.session.flush()
+    monkeypatch.setitem(app.config, "WEATHERAPI_KEY", "dummy")
+    monkeypatch.setitem(app.config, "WEATHER_PROVIDER", "OWM")
+    # The mocked response holds temperature and wind speed, but no cloud cover.
+    monkeypatch.setattr(weather, "call_api", mock_api_response)
+
+    importer = WeatherForecastImporter(config={"weather-station": station.id})
+    with pytest.raises(ValueError) as error:
+        importer.compute()
+    assert f"cloud cover (sensor {cloud_cover.id})" in str(error.value)
+    assert "temperature" not in str(error.value)
 
 
 def test_weather_automation_names_its_sources_like_the_cli(
