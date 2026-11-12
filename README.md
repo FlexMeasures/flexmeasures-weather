@@ -41,6 +41,13 @@ Weather imports run on the `ingestion` queue. The automation runner and an inges
 worker must both load this plugin. The provider and API key remain server settings and
 are not stored in the automation.
 
+Moving a station from the CLI to an automation changes the data source its new forecasts are recorded under.
+The CLI records them under the weather provider's source (named after `WEATHER_DATA_SOURCE_NAME`), and irradiance under "FlexMeasures <that name>".
+The automation records all of them, irradiance included, under a source of its own: it has the same name, but it is a different source, with the `WeatherForecastImporter` model and the station in its configuration.
+Anything reading forecasts regardless of source keeps working.
+Anything that selects forecasts by the CLI's source (for instance a forecaster regressor or a report with a source filter) needs to select the automation's source instead,
+which the automation's page shows.
+
 Use the `--help`` option for more options, e.g. for specifying two locations and requesting that a number of weather stations cover the bounding box between them (where the locations represent top left and bottom right).
 
 Notes about weather sensor setup: 
