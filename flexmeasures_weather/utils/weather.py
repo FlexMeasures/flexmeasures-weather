@@ -11,6 +11,7 @@ import requests
 from humanize import naturaldelta
 from timely_beliefs import BeliefsDataFrame
 from flexmeasures.utils.time_utils import as_server_time, get_timezone, server_now
+from flexmeasures import Source
 from flexmeasures.data.models.time_series import Sensor, TimedBelief
 from flexmeasures.data.utils import save_to_db
 
@@ -174,16 +175,15 @@ def call_api(
         return call_weatherapi(api_key, location)
 
 
-def save_forecasts_in_db(  # noqa: C901
+def collect_weather_forecasts(  # noqa: C901
     api_key: str,
-    locations: List[Tuple[float, float]],
-):
-    """Process the response from Weather Provider API into timed beliefs.
-    Collects all forecasts for all locations and all sensors at all locations, then bulk-saves them.
-    """
-    click.echo("[FLEXMEASURES-WEATHER] Getting weather forecasts:")
-    click.echo("[FLEXMEASURES-WEATHER] Latitude, Longitude")
-    click.echo("[FLEXMEASURES-WEATHER] -----------------------")
+    location: Tuple[float, float],
+    weather_sensors: Dict[str, Sensor] | None = None,
+    data_source: Source | None = None,
+    derived_data_source: Source | None = None,
+) -> Dict[Sensor, BeliefsDataFrame]:
+    """Collect weather forecasts for one location without saving them."""
+    use_only_given_sensors = weather_sensors is not None
     max_degree_difference_for_nearest_weather_sensor = current_app.config.get(
         "WEATHER_MAXIMAL_DEGREE_LOCATION_DISTANCE",
         DEFAULT_MAXIMAL_DEGREE_LOCATION_DISTANCE,
@@ -193,103 +193,113 @@ def save_forecasts_in_db(  # noqa: C901
         raise Exception(
             "Invalid provider name. Please set WEATHER_PROVIDER setting in config file to either OWM or WAPI, the two permissible options."
         )
-    for location in locations:
-        click.echo("[FLEXMEASURES] %s, %s" % location)
-        weather_sensors: Dict[str, Sensor] = (
-            {}
-        )  # keep track of the sensors to save lookups
-        db_forecasts: Dict[Sensor, List[TimedBelief]] = {}  # collect beliefs per sensor
+    weather_sensors = weather_sensors or {}
+    db_forecasts: Dict[Sensor, List[TimedBelief]] = {}
+    data_source = data_source or get_or_create_owm_data_source()
 
-        now = server_now()
-        time_of_api_call, forecasts = call_api(api_key, location)
-        diff_fm_owm = now - time_of_api_call
-        if abs(diff_fm_owm) > timedelta(minutes=10):
-            click.echo(
-                f"[FLEXMEASURES-WEATHER] Warning: difference between this server and Weather Provider is {naturaldelta(diff_fm_owm)}"
-            )
+    now = server_now()
+    time_of_api_call, forecasts = call_api(api_key, location)
+    diff_fm_owm = now - time_of_api_call
+    if abs(diff_fm_owm) > timedelta(minutes=10):
         click.echo(
-            f"[FLEXMEASURES-WEATHER] Called weather provider {provider} API successfully at {now}."
+            f"[FLEXMEASURES-WEATHER] Warning: difference between this server and Weather Provider is {naturaldelta(diff_fm_owm)}"
         )
+    click.echo(
+        f"[FLEXMEASURES-WEATHER] Called weather provider {provider} API successfully at {now}."
+    )
 
-        # loop through forecasts, including the one of current hour (horizon 0)
-        for fc in forecasts:
-            time_key = fc["dt"] if provider == "OWM" else fc["time_epoch"]
-            fc_datetime = as_server_time(
-                datetime.fromtimestamp(time_key, get_timezone())
-            )
-            click.echo(
-                f"[FLEXMEASURES-WEATHER] Processing forecast for {fc_datetime} ..."
-            )
-            data_source = get_or_create_owm_data_source()
-            for sensor_specs in mapping:
-                sensor_name = str(sensor_specs["fm_sensor_name"])
-                provider_response_label = sensor_specs[f"{provider}_sensor_name"]
-                if provider_response_label in fc:
-                    weather_sensor = get_weather_sensor(
-                        sensor_specs,
-                        location,
-                        weather_sensors,
-                        max_degree_difference_for_nearest_weather_sensor,
+    # loop through forecasts, including the one of current hour (horizon 0)
+    for fc in forecasts:
+        time_key = fc["dt"] if provider == "OWM" else fc["time_epoch"]
+        fc_datetime = as_server_time(datetime.fromtimestamp(time_key, get_timezone()))
+        click.echo(f"[FLEXMEASURES-WEATHER] Processing forecast for {fc_datetime} ...")
+        for sensor_specs in mapping:
+            sensor_name = str(sensor_specs["fm_sensor_name"])
+            provider_response_label = sensor_specs[f"{provider}_sensor_name"]
+            if provider_response_label in fc:
+                weather_sensor = get_weather_sensor(
+                    sensor_specs,
+                    location,
+                    weather_sensors,
+                    max_degree_difference_for_nearest_weather_sensor,
+                    find_nearby=not use_only_given_sensors,
+                )
+                if weather_sensor is not None:
+                    click.echo(
+                        f"Found pre-configured weather sensor {weather_sensor.name} ..."
                     )
-                    if weather_sensor is not None:
-                        click.echo(
-                            f"Found pre-configured weather sensor {weather_sensor.name} ..."
+                    if weather_sensor not in db_forecasts:
+                        db_forecasts[weather_sensor] = []
+
+                    fc_value = fc[provider_response_label]
+
+                    if provider_response_label == "wind_kph":
+                        # convert wind speed from kph to m/s
+                        fc_value = fc[provider_response_label] / 3.6
+
+                    # the irradiance is not available in Provider -> we compute it ourselves
+                    if sensor_name == "irradiance":
+                        fc_value = compute_irradiance(
+                            location[0],
+                            location[1],
+                            fc_datetime,
+                            # Provider sends cloud cover in percent, we need a ratio
+                            fc_value / 100.0,
                         )
-                        if weather_sensor not in db_forecasts.keys():
-                            db_forecasts[weather_sensor] = []
-
-                        fc_value = fc[provider_response_label]
-
-                        if provider_response_label == "wind_kph":
-                            # convert wind speed from kph to m/s
-                            fc_value = fc[provider_response_label] / 3.6
-
-                        # the irradiance is not available in Provider -> we compute it ourselves
-                        if sensor_name == "irradiance":
-                            fc_value = compute_irradiance(
-                                location[0],
-                                location[1],
-                                fc_datetime,
-                                # Provider sends cloud cover in percent, we need a ratio
-                                fc_value / 100.0,
-                            )
-                            data_source = (
+                        if derived_data_source is None:
+                            derived_data_source = (
                                 get_or_create_owm_data_source_for_derived_data()
                             )
+                        result_data_source = derived_data_source
+                    else:
+                        result_data_source = data_source
 
-                        db_forecasts[weather_sensor].append(
-                            TimedBelief(
-                                event_start=fc_datetime,
-                                belief_time=now,
-                                event_value=fc_value,
-                                sensor=weather_sensor,
-                                source=data_source,
-                            )
+                    db_forecasts[weather_sensor].append(
+                        TimedBelief(
+                            event_start=fc_datetime,
+                            belief_time=now,
+                            event_value=fc_value,
+                            sensor=weather_sensor,
+                            source=result_data_source,
                         )
-                else:
-                    # we will not fail here, but issue a warning
-                    msg = "No label '%s' in response data for time %s" % (
-                        provider_response_label,
-                        fc_datetime,
                     )
-                    click.echo("[FLEXMEASURES-WEATHER] %s" % msg)
-                    current_app.logger.warning(msg)
-    for sensor in db_forecasts.keys():
-        click.echo(f"[FLEXMEASURES-WEATHER] Saving {sensor.name} forecasts ...")
-        if len(db_forecasts[sensor]) == 0:
-            # This is probably a serious problem
-            raise Exception(
-                "Nothing to put in the database was produced. That does not seem right..."
-            )
-        status = save_to_db(BeliefsDataFrame(db_forecasts[sensor]))
-        if status == "success_but_nothing_new":
-            current_app.logger.info(
-                "[FLEXMEASURES-WEATHER] Done. These beliefs had already been saved before."
-            )
-        elif status == "success_with_unchanged_beliefs_skipped":
-            current_app.logger.info(
-                "[FLEXMEASURES-WEATHER] Done. Some beliefs had already been saved before."
-            )
+            else:
+                # we will not fail here, but issue a warning
+                msg = "No label '%s' in response data for time %s" % (
+                    provider_response_label,
+                    fc_datetime,
+                )
+                click.echo("[FLEXMEASURES-WEATHER] %s" % msg)
+                current_app.logger.warning(msg)
+    return {
+        sensor: BeliefsDataFrame(beliefs)
+        for sensor, beliefs in db_forecasts.items()
+        if beliefs
+    }
+
+
+def save_forecasts_in_db(
+    api_key: str,
+    locations: List[Tuple[float, float]],
+):
+    """Collect and save weather forecasts for one or more locations."""
+    click.echo("[FLEXMEASURES-WEATHER] Getting weather forecasts:")
+    click.echo("[FLEXMEASURES-WEATHER] Latitude, Longitude")
+    click.echo("[FLEXMEASURES-WEATHER] -----------------------")
+    for location in locations:
+        click.echo("[FLEXMEASURES] %s, %s" % location)
+        forecasts = collect_weather_forecasts(api_key, location)
+        for sensor, beliefs in forecasts.items():
+            click.echo(f"[FLEXMEASURES-WEATHER] Saving {sensor.name} forecasts ...")
+            status = save_to_db(beliefs)
+            if status == "success_but_nothing_new":
+                current_app.logger.info(
+                    "[FLEXMEASURES-WEATHER] Done. These beliefs had already been saved before."
+                )
+            elif status == "success_with_unchanged_beliefs_skipped":
+                current_app.logger.info(
+                    "[FLEXMEASURES-WEATHER] Done. Some beliefs had already been saved before."
+                )
 
 
 def get_weather_sensor(
@@ -297,18 +307,21 @@ def get_weather_sensor(
     location: Tuple[float, float],
     weather_sensors: Dict[str, Sensor],
     max_degree_difference_for_nearest_weather_sensor: int,
+    find_nearby: bool = True,
 ) -> Sensor | None:
     """Get the weather sensor for this own response label and location, if we haven't retrieved it already."""
     sensor_name = str(sensor_specs["fm_sensor_name"])
     if sensor_name in weather_sensors:
         weather_sensor = weather_sensors[sensor_name]
-    else:
+    elif find_nearby:
         weather_sensor = find_weather_sensor_by_location(
             location,
             max_degree_difference_for_nearest_weather_sensor,
             sensor_name=sensor_name,
         )
         weather_sensors[sensor_name] = weather_sensor
+    else:
+        weather_sensor = None
     if (
         weather_sensor is not None
         and weather_sensor.event_resolution != sensor_specs["event_resolution"]

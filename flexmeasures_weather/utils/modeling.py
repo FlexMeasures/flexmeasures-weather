@@ -97,6 +97,17 @@ def get_or_create_weather_station(latitude: float, longitude: float) -> GenericA
     ).one_or_none()
     if weather_station is None:
         weather_station_type = get_or_create_weather_station_type()
+        base_name = station_name
+        suffix = 0
+        while (
+            GenericAsset.query.filter_by(
+                name=station_name, parent_asset_id=None, account_id=None
+            ).first()
+            is not None
+        ):
+            suffix += 1
+            suffix_text = f"-{suffix}"
+            station_name = f"{base_name[:80 - len(suffix_text)]}{suffix_text}"
         weather_station = GenericAsset(
             name=station_name,
             generic_asset_type=weather_station_type,
